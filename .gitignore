@@ -2,6 +2,7 @@
 *.slo
 *.lo
 *.o
+crp_test
 
 # Compiled Dynamic libraries
 *.so
