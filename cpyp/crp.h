@@ -16,7 +16,10 @@ namespace cpyp {
 
 // Chinese restaurant process (Pitman-Yor parameters) histogram-based table tracking
 // based on the implementation proposed by Blunsom et al. 2009
-
+//
+// this implementation assumes that the observation likelihoods are either 1 (if they
+// are identical to the "parameter" drawn from G_0) or 0. This is fine for most NLP
+// applications but violated in PYP mixture models etc.
 template <typename Dish, typename DishHash = std::hash<Dish> >
 class crp {
  public:
@@ -163,8 +166,8 @@ class crp {
     if (has_strength_prior())
       lp += Md::log_gamma_density(strength + discount, strength_prior_shape_, strength_prior_rate_);
     assert(lp <= 0.0);
-    if (num_customers_) {
-      if (discount > 0.0) {
+    if (num_customers_) {  // if restaurant is not empty
+      if (discount > 0.0) {  // two parameter case: discount > 0
         const double r = lgamma(1.0 - discount);
         if (strength)
           lp += lgamma(strength) - lgamma(strength / discount);
@@ -179,8 +182,7 @@ class crp {
         assert(std::isfinite(lp));
         for (auto& dish_loc : dish_locs_)
           lp += lgamma(dish_loc.second.num_tables());
-      } else {
-        // should never happen
+      } else { // should never happen
         assert(!"discount less than 0 detected!");
       }
     }
@@ -192,39 +194,24 @@ class crp {
   void resample_hyperparameters(Engine& eng, const unsigned nloop = 5, const unsigned niterations = 10) {
     assert(has_discount_prior() || has_strength_prior());
     if (num_customers() == 0) return;
-    DiscountResampler dr(*this);
-    StrengthResampler sr(*this);
     for (unsigned iter = 0; iter < nloop; ++iter) {
       if (has_strength_prior()) {
-        strength_ = slice_sampler1d(sr, strength_, eng, -discount_ + std::numeric_limits<double>::min(),
+        strength_ = slice_sampler1d([this](double prop_s) { return log_likelihood(discount_, prop_s); },
+                               strength_, eng, -discount_ + std::numeric_limits<double>::min(),
                                std::numeric_limits<double>::infinity(), 0.0, niterations, 100*niterations);
       }
       if (has_discount_prior()) {
         double min_discount = std::numeric_limits<double>::min();
         if (strength_ < 0.0) min_discount -= strength_;
-        discount_ = slice_sampler1d(dr, discount_, eng, min_discount,
+        discount_ = slice_sampler1d([this](double prop_d) { return log_likelihood(prop_d, strength_); },
+                               discount_, eng, min_discount,
                                1.0, 0.0, niterations, 100*niterations);
       }
     }
-    strength_ = slice_sampler1d(sr, strength_, eng, -discount_,
+    strength_ = slice_sampler1d([this](double prop_s) { return log_likelihood(discount_, prop_s); },
+                             strength_, eng, -discount_,
                              std::numeric_limits<double>::infinity(), 0.0, niterations, 100*niterations);
   }
-
-  struct DiscountResampler {
-    DiscountResampler(const crp& crp) : crp_(crp) {}
-    const crp& crp_;
-    double operator()(const double& proposed_discount) const {
-      return crp_.log_likelihood(proposed_discount, crp_.strength_);
-    }
-  };
-
-  struct StrengthResampler {
-    StrengthResampler(const crp& crp) : crp_(crp) {}
-    const crp& crp_;
-    double operator()(const double& proposed_strength) const {
-      return crp_.log_likelihood(crp_.discount_, proposed_strength);
-    }
-  };
 
   void print(std::ostream* out) const {
     std::cerr << "PYP(d=" << discount_ << ",c=" << strength_ << ") customers=" << num_customers_ << std::endl;
