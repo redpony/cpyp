@@ -196,19 +196,19 @@ class crp {
     if (num_customers() == 0) return;
     for (unsigned iter = 0; iter < nloop; ++iter) {
       if (has_strength_prior()) {
-        strength_ = slice_sampler1d([this](double prop_s) { return log_likelihood(discount_, prop_s); },
+        strength_ = slice_sampler1d([this](double prop_s) { return this->log_likelihood(discount_, prop_s); },
                                strength_, eng, -discount_ + std::numeric_limits<double>::min(),
                                std::numeric_limits<double>::infinity(), 0.0, niterations, 100*niterations);
       }
       if (has_discount_prior()) {
         double min_discount = std::numeric_limits<double>::min();
         if (strength_ < 0.0) min_discount -= strength_;
-        discount_ = slice_sampler1d([this](double prop_d) { return log_likelihood(prop_d, strength_); },
+        discount_ = slice_sampler1d([this](double prop_d) { return this->log_likelihood(prop_d, strength_); },
                                discount_, eng, min_discount,
                                1.0, 0.0, niterations, 100*niterations);
       }
     }
-    strength_ = slice_sampler1d([this](double prop_s) { return log_likelihood(discount_, prop_s); },
+    strength_ = slice_sampler1d([this](double prop_s) { return this->log_likelihood(discount_, prop_s); },
                              strength_, eng, -discount_,
                              std::numeric_limits<double>::infinity(), 0.0, niterations, 100*niterations);
   }
