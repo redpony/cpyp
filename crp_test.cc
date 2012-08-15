@@ -39,6 +39,8 @@ int main() {
   tot += c;
   }
   assert(cust == crp.num_customers());
+  cerr << crp << endl;
+  cerr << crp.log_likelihood() << endl;
   cerr << "P(a) = " << (xt / samples) << endl;
   cerr << "mean num tables = " << (tot / samples) << endl;
   double error = fabs((tot / samples) - 5.4);
@@ -46,8 +48,8 @@ int main() {
   for (unsigned i = 1; i <= cust; ++i)
   cerr << i << ' ' << (hist[i]) << endl;
   if (error > 0.1) {
-  cerr << "*** error is too big = " << error << endl;
-  return 1;
+    cerr << "*** error is too big = " << error << endl;
+    return 1;
   }
   return 0;
 }

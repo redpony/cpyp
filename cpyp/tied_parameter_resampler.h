@@ -49,38 +49,23 @@ struct tied_parameter_resampler {
     return log_likelihood(discount, strength);
   }
 
-  struct DiscountResampler {
-    DiscountResampler(const tied_parameter_resampler& m) : m_(m) {}
-    const tied_parameter_resampler& m_;
-    double operator()(const double& proposed_discount) const {
-      return m_.log_likelihood(proposed_discount, m_.strength);
-    }
-  };
-
-  struct AlphaResampler {
-    AlphaResampler(const tied_parameter_resampler& m) : m_(m) {}
-    const tied_parameter_resampler& m_;
-    double operator()(const double& proposed_strength) const {
-      return m_.log_likelihood(m_.discount, proposed_strength);
-    }
-  };
-
   template<typename Engine>
   void resample_hyperparameters(Engine& eng, const unsigned nloop = 5, const unsigned niterations = 10) {
     if (size() == 0) { std::cerr << "EMPTY - not resampling\n"; return; }
-    const DiscountResampler dr(*this);
-    const AlphaResampler ar(*this);
     for (unsigned iter = 0; iter < nloop; ++iter) {
-      strength = slice_sampler1d(ar, strength, eng, -discount + std::numeric_limits<double>::min(),
+      strength = slice_sampler1d([this](double prop_s) { return this->log_likelihood(discount, prop_s); },
+                              strength, eng, -discount + std::numeric_limits<double>::min(),
                               std::numeric_limits<double>::infinity(), 0.0, niterations, 100*niterations);
       double min_discount = std::numeric_limits<double>::min();
       if (strength < 0.0) min_discount -= strength;
-      discount = slice_sampler1d(dr, discount, eng, min_discount,
+      discount = slice_sampler1d([this](double prop_d) { return this->log_likelihood(prop_d, strength); },
+                          discount, eng, min_discount,
                           1.0, 0.0, niterations, 100*niterations);
     }
-    strength = slice_sampler1d(ar, strength, eng, -discount + std::numeric_limits<double>::min(),
+    strength = slice_sampler1d([this](double prop_s) { return this->log_likelihood(discount, prop_s); },
+                            strength, eng, -discount + std::numeric_limits<double>::min(),
                             std::numeric_limits<double>::infinity(), 0.0, niterations, 100*niterations);
-    std::cerr << "TiedCRPs(d=" << discount << ",s="
+    std::cerr << "Resampled " << crps.size() << " CRPs (d=" << discount << ",s="
               << strength << ") = " << log_likelihood(discount, strength) << std::endl;
     for (typename std::set<CRP*>::iterator it = crps.begin(); it != crps.end(); ++it)
       (*it)->set_hyperparameters(discount, strength);
