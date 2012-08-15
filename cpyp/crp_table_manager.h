@@ -108,9 +108,10 @@ struct crp_table_manager {
 
 std::ostream& operator<<(std::ostream& os, const crp_table_manager& tm) {
   os << '[' << tm.num_customers() << " total customers at " << tm.num_tables() << " tables ||| ";
-  for (crp_histogram::const_iterator it = tm.begin(); it != tm.end(); ++it) {
-    if (it != tm.h.begin()) os << "  --  ";
-    os << '(' << it->first << ") x " << it->second;
+  bool first = true;
+  for (auto& table : tm) {
+    if (first) first = false; else os << "  --  ";
+    os << '(' << table.first << ") x " << table.second;
   }
   return os << ']';
 }

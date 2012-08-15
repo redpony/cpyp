@@ -83,7 +83,7 @@ class crp {
   }
 
   unsigned num_tables(const Dish& dish) const {
-    const typename std::unordered_map<Dish, crp_table_manager, DishHash>::const_iterator it = dish_locs_.find(dish);
+    auto it = dish_locs_.find(dish);
     if (it == dish_locs_.end()) return 0;
     return it->second.num_tables();
   }
@@ -93,7 +93,7 @@ class crp {
   }
 
   unsigned num_customers(const Dish& dish) const {
-    const typename std::unordered_map<Dish, crp_table_manager, DishHash>::const_iterator it = dish_locs_.find(dish);
+    auto it = dish_locs_.find(dish);
     if (it == dish_locs_.end()) return 0;
     return it->num_customers();
   }
@@ -140,7 +140,7 @@ class crp {
 
   template <typename F>
   F prob(const Dish& dish, const F& p0) const {
-    const typename std::unordered_map<Dish, crp_table_manager, DishHash>::const_iterator it = dish_locs_.find(dish);
+    auto it = dish_locs_.find(dish);
     const F r = F(num_tables_ * discount_ + strength_);
     if (it == dish_locs_.end()) {
       return r * p0 / F(num_customers_ + strength_);
@@ -171,22 +171,16 @@ class crp {
         lp += - lgamma(strength + num_customers_)
              + num_tables_ * log(discount) + lgamma(strength / discount + num_tables_);
         assert(std::isfinite(lp));
-        for (typename std::unordered_map<Dish, crp_table_manager, DishHash>::const_iterator it = dish_locs_.begin();
-             it != dish_locs_.end(); ++it) {
-          const crp_table_manager& cur = it->second;
-          for (crp_table_manager::const_iterator ti = cur.begin(); ti != cur.end(); ++ti) {
-            lp += (lgamma(ti->first - discount) - r) * ti->second;
-          }
-        }
+        for (auto& dish_loc : dish_locs_)
+          for (auto& bin : dish_loc.second)
+            lp += (lgamma(bin.first - discount) - r) * bin.second;
       } else if (!discount) { // discount == 0.0 (ie, Dirichlet Process)
         lp += lgamma(strength) + num_tables_ * log(strength) - lgamma(strength + num_tables_);
         assert(std::isfinite(lp));
-        for (typename std::unordered_map<Dish, crp_table_manager, DishHash>::const_iterator it = dish_locs_.begin();
-             it != dish_locs_.end(); ++it) {
-          const crp_table_manager& cur = it->second;
-          lp += lgamma(cur.num_tables());
-        }
+        for (auto& dish_loc : dish_locs_)
+          lp += lgamma(dish_loc.second.num_tables());
       } else {
+        // should never happen
         assert(!"discount less than 0 detected!");
       }
     }
@@ -234,10 +228,8 @@ class crp {
 
   void print(std::ostream* out) const {
     std::cerr << "PYP(d=" << discount_ << ",c=" << strength_ << ") customers=" << num_customers_ << std::endl;
-    for (typename std::unordered_map<Dish, crp_table_manager, DishHash>::const_iterator it = dish_locs_.begin();
-         it != dish_locs_.end(); ++it) {
-      (*out) << it->first << " : " << it->second << std::endl;
-    }
+    for (auto& dish_loc : dish_locs_)
+      (*out) << dish_loc.first << " : " << dish_loc.second << std::endl;
   }
 
   typedef typename std::unordered_map<Dish, crp_table_manager, DishHash>::const_iterator const_iterator;
