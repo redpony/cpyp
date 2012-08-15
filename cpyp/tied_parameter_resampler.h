@@ -40,8 +40,7 @@ struct tied_parameter_resampler {
     if (s <= -d) return -std::numeric_limits<double>::infinity();
     double llh = Md::log_beta_density(d, d_alpha, d_beta) +
                  Md::log_gamma_density(d + s, s_shape, s_rate);
-    for (typename std::set<CRP*>::iterator it = crps.begin(); it != crps.end(); ++it)
-      llh += (*it)->log_likelihood(d, s);
+    for (auto& crp : crps) { llh += crp->log_likelihood(d, s); }
     return llh;
   }
 
@@ -67,8 +66,8 @@ struct tied_parameter_resampler {
                             std::numeric_limits<double>::infinity(), 0.0, niterations, 100*niterations);
     std::cerr << "Resampled " << crps.size() << " CRPs (d=" << discount << ",s="
               << strength << ") = " << log_likelihood(discount, strength) << std::endl;
-    for (typename std::set<CRP*>::iterator it = crps.begin(); it != crps.end(); ++it)
-      (*it)->set_hyperparameters(discount, strength);
+    for (auto& crp : crps)
+      crp->set_hyperparameters(discount, strength);
   }
  private:
   std::set<CRP*> crps;
