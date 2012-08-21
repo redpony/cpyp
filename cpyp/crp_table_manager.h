@@ -2,6 +2,7 @@
 #define _CPYP_CRP_TABLE_MANAGER_H_
 
 #include <iostream>
+#include <algorithm>
 #include "sparse_vector.h"
 #include "random.h"
 
@@ -59,15 +60,16 @@ struct crp_table_manager {
   inline void share_table(const double discount, Engine& eng) {
     const double z = customers - discount * num_tables();
     double r = z * sample_uniform01<double>(eng);
-    const crp_histogram::const_iterator end = h.end();
-    crp_histogram::const_iterator it = h.begin();
-    for (; it != end; ++it) {
-      // it->first = number of customers at table
-      // it->second = number of such tables
-      const double thresh = (it->first - discount) * it->second;
-      if (thresh > r) break;
-      r -= thresh;
-    }
+    const auto it = [&] {
+      const auto end = h.end();
+      auto i = h.begin();
+      for (; i != end; ++i) {
+        const double thresh = (i->first - discount) * i->second;
+        if (thresh > r) break;
+        r -= thresh;
+      }
+      return i;
+    }();
     h.move(it->first, it->first + 1);
     ++customers;
   }
@@ -78,16 +80,20 @@ struct crp_table_manager {
   template<typename Engine>
   inline int remove_customer(Engine& eng) {
     int r = sample_uniform01<double>(eng) * num_customers();
-    const crp_histogram::const_iterator end = h.end();
-    crp_histogram::const_iterator it = h.begin();
-    for (; it != end; ++it) {
-      int thresh = it->first * it->second;
-      if (thresh > r) break;
-      r -= thresh;
-    }
+    const auto it = [&] {
+      const auto end = h.end();
+      auto i = h.begin();
+      for (; i != end; ++i) {
+        // sample randomly, i.e. *don't* discount
+        const double thresh = i->first * i->second;
+        if (thresh > r) break;
+        r -= thresh;
+      }
+      return i;
+    }();
     --customers;
     const unsigned tc = it->first;
-    if (tc == 1) {
+    if (tc == 1) { // remove customer from table containing a single customer
       h.decrement(1);
       --tables;
       return -1;
