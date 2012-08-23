@@ -5,6 +5,7 @@
 #include <numeric>
 #include <cassert>
 #include <cmath>
+#include <utility>
 #include <unordered_map>
 #include <functional>
 #include "random.h"
@@ -227,6 +228,18 @@ class crp {
     return dish_locs_.end();
   }
 
+  void swap(crp<Dish>& b) {
+    std::swap(num_tables_, b.num_tables_);
+    std::swap(num_customers_, b.num_customers_);
+    std::swap(dish_locs_, b.dish_locs_);
+    std::swap(discount_, b.discount_);
+    std::swap(strength_, b.strength_);
+    std::swap(discount_prior_strength_, b.discount_prior_strength_);
+    std::swap(discount_prior_beta_, b.discount_prior_beta_);
+    std::swap(strength_prior_shape_, b.strength_prior_shape_);
+    std::swap(strength_prior_rate_, b.strength_prior_rate_);
+  }
+
  private:
   unsigned num_tables_;
   unsigned num_customers_;
@@ -243,6 +256,11 @@ class crp {
   double strength_prior_shape_;
   double strength_prior_rate_;
 };
+
+template<typename T>
+void swap(crp<T>& a, crp<T>& b) {
+  a.swap(b);
+}
 
 template <typename T,typename H>
 std::ostream& operator<<(std::ostream& o, const crp<T,H>& c) {

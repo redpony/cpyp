@@ -446,6 +446,11 @@ class SparseVector {
 };
 
 template <typename T>
+void swap(SparseVector<T>& a, SparseVector<T>& b) {
+  a.swap(b);
+}
+
+template <typename T>
 const SparseVector<T> operator+(const SparseVector<T>& x, const SparseVector<T>& y) {
   if (x.size() > y.size()) {
     SparseVector<T> res(x);

@@ -2,6 +2,7 @@
 #define _CPYP_CRP_TABLE_MANAGER_H_
 
 #include <iostream>
+#include <utility>
 #include "sparse_vector.h"
 #include "random.h"
 
@@ -28,10 +29,17 @@ struct crp_histogram {
   }
   inline const_iterator begin() const { return data.begin(); }
   inline const_iterator end() const { return data.end(); }
+  void swap(crp_histogram& other) {
+    std::swap(data, other.data);
+  }
 
  private:
   MAPTYPE data;
 };
+
+void swap(crp_histogram& a, crp_histogram& b) {
+  a.swap(b);
+}
 
 // A crp_table_manager tracks statistics about all customers
 // and tables serving some dish in a CRP and can correctly sample what
@@ -105,6 +113,12 @@ struct crp_table_manager {
   unsigned tables;
   crp_histogram h;
 };
+
+void swap(crp_table_manager& a, crp_table_manager& b) {
+  std::swap(a.customers, b.customers);
+  std::swap(a.tables, b.tables);
+  std::swap(a.h, b.h);
+}
 
 std::ostream& operator<<(std::ostream& os, const crp_table_manager& tm) {
   os << '[' << tm.num_customers() << " total customers at " << tm.num_tables() << " tables ||| ";
