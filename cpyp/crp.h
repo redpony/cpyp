@@ -103,10 +103,9 @@ class crp {
   }
 
   // returns +1 or 0 indicating whether a new table was opened
-  //   p = probability with which the particular table was selected
-  //       excluding p0
+  //   q = probability with which the particular table was selected (optional)
   template<typename F, typename Engine>
-  int increment(const Dish& dish, const F& p0, Engine& eng) {
+  int increment(const Dish& dish, const F& p0, Engine& eng, double* q = nullptr) {
     crp_table_manager& loc = dish_locs_[dish];
     bool share_table = false;
     if (loc.num_customers()) {
@@ -114,8 +113,20 @@ class crp {
       const F p_share = F(loc.num_customers() - loc.num_tables() * discount_);
       share_table = sample_bernoulli(p_empty, p_share, eng);
     }
+
+    // does the caller want the table selection probability?
+    if (q && !share_table) {
+      if (num_customers_)
+        *q = (strength_ + num_tables_ * discount_) /
+                (num_customers() - num_tables() * discount_ + strength_);
+      else // first customer
+        *q = 1.0;
+    }
+
     if (share_table) {
-      loc.share_table(discount_, eng);
+      unsigned selected_table_prevcount = loc.share_table(discount_, eng);
+      if (q) *q = (selected_table_prevcount - discount_) /
+                     (num_customers() - num_tables() * discount_ + strength_);
     } else {
       loc.create_table();
       ++num_tables_;
@@ -125,19 +136,29 @@ class crp {
   }
 
   // returns -1 or 0, indicating whether a table was closed
+  //   q = probability that the selected table will be reselected
   template<typename Engine>
-  int decrement(const Dish& dish, Engine& eng) {
+  int decrement(const Dish& dish, Engine& eng, double* q = nullptr) {
     crp_table_manager& loc = dish_locs_[dish];
     assert(loc.num_customers());
     if (loc.num_customers() == 1) {
       dish_locs_.erase(dish);
       --num_tables_;
       --num_customers_;
+      if (q) *q = 1.0;
       return -1;
     } else {
-      int delta = loc.remove_customer(eng);
+      unsigned selected_table_postcount = 0;
+      int delta = loc.remove_customer(eng, &selected_table_postcount);
       --num_customers_;
       if (delta) --num_tables_;
+      if (q) {
+        const double z = (num_customers() - num_tables() * discount_ + strength_);
+        if (selected_table_postcount)
+          *q = (selected_table_postcount - discount_) / z;
+        else
+          *q = (strength_ + num_tables_ * discount_) / z;
+      }
       return delta;
     }
   }

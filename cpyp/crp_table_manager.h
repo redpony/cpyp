@@ -63,8 +63,9 @@ struct crp_table_manager {
 
   // seat a customer at a table proportional to the number of customers seated at a table, less the discount
   // *new tables are never created by this function!
+  // returns the number of customers already seated at the table (always > 0)
   template<typename Engine>
-  inline void share_table(const double discount, Engine& eng) {
+  unsigned share_table(const double discount, Engine& eng) {
     const double z = customers - discount * num_tables();
     double r = z * sample_uniform01<double>(eng);
     const auto it = [&] {
@@ -77,15 +78,17 @@ struct crp_table_manager {
       }
       return i;
     }();
-    h.move(it->first, it->first + 1);
+    const unsigned cc = it->first;
+    h.move(cc, cc + 1);
     ++customers;
+    return cc;
   }
 
   // randomly sample a customer
   // *tables may be removed
   // returns -1 if a table is removed, 0 otherwise
   template<typename Engine>
-  inline int remove_customer(Engine& eng) {
+  inline int remove_customer(Engine& eng, unsigned* selected_table_postcount) {
     int r = sample_uniform01<double>(eng) * num_customers();
     const auto it = [&] {
       const auto end = h.end();
@@ -100,6 +103,7 @@ struct crp_table_manager {
     }();
     --customers;
     const unsigned tc = it->first;
+    if (selected_table_postcount) *selected_table_postcount = tc - 1;
     if (tc == 1) { // remove customer from table containing a single customer
       h.decrement(1);
       --tables;

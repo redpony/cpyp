@@ -9,7 +9,15 @@
 using namespace std;
 
 static const double p0[] = { 0.1, 0.2, 0.7 };  // actual base distribution
-static const double q0[] = { 0.8, 0.1, 0.1 };  // proposal base distribution
+static const double q0[] = { 0.5, 0.4, 0.1 };  // proposal base distribution
+
+// log likelihood of a CRP including draws from a static base distribution p0
+double llh(const cpyp::crp<int>& crp, const double* p0) {
+  double l = crp.log_likelihood();
+  for (int i = 0; i < 3; ++i)
+    l += crp.num_tables(i) * log(p0[i]);
+  return l;
+}
 
 void test_mh1() {
   cpyp::MT19937 eng;
@@ -63,6 +71,160 @@ void test_mh1() {
   cerr << endl;
 }
 
+// same model as test_mh1, same proposal, different way of computing
+// p's and q's
+void test_mh1a() {
+  cpyp::MT19937 eng;
+  const vector<double> ref = {0, 0, 0, 0.00466121, 0.0233846, 0.0647365, 0.125693, 0.183448, 0.204806, 0.177036, 0.119629, 0.0627523, 0.02507, 0.00725451, 0.0013911};
+  cpyp::crp<int> crp(0.5, 1.0);
+  vector<int> hist(15, 0);
+  double c = 0;
+  double ac = 0;
+  double tmh = 0;
+  for (int s = 0; s < 200000; ++s) {
+    for (int i = 0; i < 15; ++i) {
+      int y_i = i % 3;
+      cpyp::crp<int> prev = crp;  // save old state
+      double q_old = 1;
+      double p_old = exp(llh(crp, p0));
+      bool wasrem = false;
+      if (s > 0) wasrem = crp.decrement(y_i, eng, &q_old);
+
+      double q_new = 1;
+      bool wasnew = crp.increment(y_i, q0[y_i], eng, &q_new);
+      if (s > 0) {
+        if (wasnew) { q_new *= q0[y_i]; }
+        if (wasrem) { q_old *= q0[y_i]; }
+        double p_new = exp(llh(crp, p0));
+        double a = p_new / p_old * q_old / q_new;
+        ++tmh;
+        if (a >= 1.0 || cpyp::sample_uniform01<double>(eng) < a) { // mh accept
+          ++ac;
+        } else { // mh reject
+          std::swap(crp, prev);  // swap is faster than =
+        }
+      }
+    }
+    if (s > 300 && s % 4 == 3) { ++c; hist[crp.num_tables()]++; }
+  }
+  ac /= tmh;
+  cerr << "ACCEPTANCE: " << ac << endl;
+  int j =0;
+  double te = 0;
+  double me = 0;
+  for (auto i : hist) {
+    double err = (i / c - ref[j++]);
+    cerr << err << "\t" << i/c << endl;
+    te += fabs(err);
+    if (fabs(err) > me) { me = fabs(err); }
+  }
+  te /= 12;
+  cerr << "Average error: " << te;
+  if (te > 0.01) { cerr << "  ** TOO HIGH **"; }
+  cerr << endl << "    Max error: " << me;
+  if (me > 0.01) { cerr << "  ** TOO HIGH **"; }
+  cerr << endl;
+}
+
+#if 0
+static const double p0_a[] = { 0.1, 0.2, 0.7 };  // actual base distribution
+static const double p0_b[] = { 0.6, 0.3, 0.1 };  // actual base of d2
+
+void test_mh2() {
+  cpyp::MT19937 eng;
+  cpyp::crp<int> a(0.5, 1.0);
+  cpyp::crp<int> b(0.5, 1.0);
+  vector<int> hist_a(15, 0);
+  vector<int> hist_b(15, 0);
+  vector<double> ref_a = {3.70004e-06, 0.0144611, 0.0614236, 0.138702, 0.211308, 0.231733, 0.183865, 0.103685, 0.0409419, 0.0114253, 0.00214592, 0.000281003, 2.33002e-05, 7.00007e-07, 2.12303e-07};
+  vector<double> ref_b = {2.90003e-06, 0.00876079, 0.0471061, 0.115841, 0.187615, 0.221488, 0.196102, 0.130352, 0.063905, 0.0224984, 0.00542085, 0.000828908, 7.53008e-05, 4.90005e-06, 1.00001e-07};
+  double ref_t0b = 1.53498;
+
+  vector<bool> z(15);
+  double c = 0;
+  double ac = 0;
+  double tmh = 0;
+  double zz = 0;
+  double t0b = 0;
+  for (int s = 0; s < 500000; ++s) {
+    for (int i = 0; i < 15; ++i) {
+      unsigned int y_i = i % 3;
+      const bool old_z = z[i];
+      cpyp::crp<int> old_a = a;
+      cpyp::crp<int> old_b = b;
+
+      bool was_rem = false;
+      double qqq = 1;
+      if (s > 0) was_rem = (z[i] ? b : a).decrement(y_i, eng, &qqq);
+      double p_a = 1.0; //a.prob(y_i, p0_a[y_i]);
+      double p_b = 1.0; //b.prob(y_i, p0_b[y_i]);
+      z[i] = cpyp::sample_bernoulli(p_a, p_b, eng);
+      //double b_new = (z[i] ? p_b : p_a) / (p_a + p_b);
+      //double b_old = (old_z ? p_b : p_a) / (p_a + p_b);
+      bool was_new = false;
+      double qq = 1;
+      if (z[i]) was_new = b.increment(y_i, 1.0, eng, &qq); else was_new = a.increment(y_i, 1.0, eng, &qq);
+      if (s > 0) {
+        double p_new = qq, q_new = qq;
+        if (was_new) {
+          p_new *= (z[i] ? p0_b : p0_a)[y_i];
+        }
+        double p_old = qqq, q_old = qqq;
+        if (was_rem) {
+          p_old *= (old_z ? p0_b : p0_a)[y_i];
+        }
+        double acc = p_new / p_old * q_old / q_new;
+        ++tmh;
+        if (acc >= 1.0 || cpyp::sample_uniform01<double>(eng) < acc) { // mh accept
+          ++ac;
+        } else { // mh reject
+          std::swap(a, old_a);
+          std::swap(b, old_b);
+          z[i] = old_z;
+        }
+      }
+    }
+
+    // record sample
+    if (s> 500 && s % 30 == 9) {
+      assert(a.num_tables() < hist_a.size());
+      assert(b.num_tables() < hist_b.size());
+      hist_a[a.num_tables()]++; hist_b[b.num_tables()]++; ++c;
+      for (int i = 0; i < 15; ++i) {
+        unsigned int y_i = i % 3;
+        if (!z[i]) { t0b += y_i; ++zz; }
+      }
+    }
+  }
+  ac /= tmh;
+  cerr << "ACCEPTANCE: " << ac << endl;
+  int j =0;
+  double te = 0;
+  double me = 0;
+  for (int i = 0; i < 15; ++i) {
+    double a = hist_a[i];
+    double b = hist_b[i];
+    double err_a = (a / c - ref_a[j]);
+    double err_b = (b / c - ref_b[j++]);
+    cerr << err_a << "\t" << err_b << endl;
+    te += fabs(err_a) + fabs(err_b);
+    if (fabs(err_a) > me) { me = fabs(err_a); }
+    if (fabs(err_b) > me) { me = fabs(err_b); }
+  }
+  te /= 30;
+  cerr << "t0b = " << (t0b / zz) << endl;
+  double ee = fabs((t0b / zz) - ref_t0b);
+  cerr << "err t0b = " << ee;
+  if (ee > 0.01) { cerr << "  ** TOO HIGH **"; }
+  cerr << endl;
+  cerr << "Average error: " << te;
+  if (te > 0.01) { cerr << "  ** TOO HIGH **"; }
+  cerr << endl << "    Max error: " << me;
+  if (me > 0.01) { cerr << "  ** TOO HIGH **"; }
+  cerr << endl;
+}
+#endif
+
 int main() {
   cpyp::MT19937 eng;
   double tot = 0;
@@ -107,6 +269,8 @@ int main() {
     return 1;
   }
   test_mh1();
+  test_mh1a();
+//  test_mh2();
   return 0;
 }
 
