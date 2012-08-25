@@ -103,7 +103,6 @@ class crp {
   }
 
   // returns +1 or 0 indicating whether a new table was opened
-  //   q = probability with which the particular table was selected (optional)
   template<typename F, typename Engine>
   int increment(const Dish& dish, const F& p0, Engine& eng) {
     crp_table_manager& loc = dish_locs_[dish];
@@ -127,10 +126,10 @@ class crp {
   // increment when base distribution is not available
   // returns -1 or 0, indicating whether a table was closed
   // returns +1 or 0 indicating whether a new table was opened
-  // q = probability with which the particular table was selected
+  // logq = probability with which the particular table was selected
   // use this to implement Metropolis-Hastings samplers
   template<typename Engine>
-  int increment_no_base(const Dish& dish, Engine& eng, double* q) {
+  int increment_no_base(const Dish& dish, Engine& eng, double* logq) {
     crp_table_manager& loc = dish_locs_[dish];
     bool share_table = false;
     if (loc.num_customers()) {
@@ -139,14 +138,14 @@ class crp {
       share_table = sample_bernoulli(p_empty, p_share, eng);
 
       // probability of sharing a table | dish
-      *q *= (share_table ? p_share : p_empty) / (p_empty + p_share);
+      *logq += log((share_table ? p_share : p_empty) / (p_empty + p_share));
     }
 
     if (share_table) {
       const unsigned selected_table_prevcount = loc.share_table(discount_, eng);
       // probability of picking this particlar table to share | dish
-      *q *= (selected_table_prevcount - discount_) /
-                  (loc.num_customers() - 1 - loc.num_tables() * discount_);
+      *logq += log((selected_table_prevcount - discount_) /
+                  (loc.num_customers() - 1 - loc.num_tables() * discount_));
     } else {
       loc.create_table();
       ++num_tables_;
@@ -156,10 +155,10 @@ class crp {
   }
 
   // returns -1 or 0, indicating whether a table was closed
-  // q = probability that the selected table will be reselected if
+  // logq = probability that the selected table will be reselected if
   //     increment_no_base is called with dish [optional]
   template<typename Engine>
-  int decrement(const Dish& dish, Engine& eng, double* q = nullptr) {
+  int decrement(const Dish& dish, Engine& eng, double* logq = nullptr) {
     crp_table_manager& loc = dish_locs_[dish];
     assert(loc.num_customers());
     if (loc.num_customers() == 1) {
@@ -174,18 +173,17 @@ class crp {
       --num_customers_;
       if (delta) --num_tables_;
 
-      if (q) {
+      if (logq) {
         double p_empty = (strength_ + num_tables_ * discount_);
         double p_share = (loc.num_customers() - loc.num_tables() * discount_);
         const double z = p_empty + p_share;
         p_empty /= z;
         p_share /= z;
-        if (q) {
-          if (selected_table_postcount)
-            *q *= p_share * (selected_table_postcount - discount_) / (loc.num_customers() - loc.num_tables() * discount_);
-          else
-            *q *= p_empty;
-        }
+        if (selected_table_postcount)
+          *logq += log(p_share * (selected_table_postcount - discount_) /
+                     (loc.num_customers() - loc.num_tables() * discount_));
+        else
+          *logq += log(p_empty);
       }
       return delta;
     }

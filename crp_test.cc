@@ -85,15 +85,15 @@ void test_mh1a() {
     for (int i = 0; i < 15; ++i) {
       int y_i = i % 3;
       cpyp::crp<int> prev = crp;  // save old state
-      double q_old = 1;
-      double p_old = exp(llh(crp, p0));
-      if (s > 0) crp.decrement(y_i, eng, &q_old);
+      double lq_old = 0;
+      double lp_old = llh(crp, p0);
+      if (s > 0) crp.decrement(y_i, eng, &lq_old);
 
-      double q_new = 1;
-      crp.increment_no_base(y_i, eng, &q_new);
+      double lq_new = 0;
+      crp.increment_no_base(y_i, eng, &lq_new);
       if (s > 0) {
-        double p_new = exp(llh(crp, p0));
-        double a = p_new / p_old * q_old / q_new;
+        double lp_new = llh(crp, p0);
+        double a = exp(lp_new - lp_old + lq_old - lq_new);
         ++tmh;
         if (a >= 1.0 || cpyp::sample_uniform01<double>(eng) < a) { // mh accept
           ++ac;
@@ -153,21 +153,20 @@ void test_mh2() {
       cpyp::crp<int> old_b = b;
       double lp_old = llh(a, p0_a) + llh(b, p0_b);
 
-      double q_old = 1.0;
-      double q_new = 1.0;
-      if (s > 0) (z[i] ? b : a).decrement(y_i, eng, &q_old);
+      double lq_old = 0;
+      double lq_new = 0;
+      if (s > 0) (z[i] ? b : a).decrement(y_i, eng, &lq_old);
 
       double aa = 0.5;  // these can be better estimates
       double bb = 0.5;
       z[i] = cpyp::sample_bernoulli(aa, bb, eng);
-      (z[i] ? b : a).increment_no_base(y_i, eng, &q_new);
-      q_new *= (z[i] ? bb : aa) / (aa + bb);
-      q_old *= (old_z ? bb : aa) / (aa + bb);
+      (z[i] ? b : a).increment_no_base(y_i, eng, &lq_new);
+      lq_new += log((z[i] ? bb : aa) / (aa + bb));
+      lq_old += log((old_z ? bb : aa) / (aa + bb));
 
       if (s > 0) { 
         double lp_new = llh(a, p0_a) + llh(b, p0_b);
-        double prat = exp(lp_new - lp_old);
-        double acc = prat * q_old / q_new;
+        double acc = exp(lp_new - lp_old + lq_old - lq_new);
         ++tmh;
         if (acc >= 1.0 || cpyp::sample_uniform01<double>(eng) < acc) { // mh accept
           ++ac;
