@@ -14,7 +14,7 @@
 
 // I use templates to handle the recursive formalation of the prior, so
 // the order of the model has to be specified here, at compile time:
-#define kORDER 3
+#define kORDER 2
 
 using namespace std;
 using namespace cpyp;
@@ -90,11 +90,7 @@ template <unsigned N> struct PYPLM {
   }
 
   double log_likelihood() const {
-    double llh = backoff.log_likelihood();
-    for (auto crp : p)
-      llh += crp.second.log_likelihood();
-    llh += tr.log_likelihood();
-    return llh;
+    return backoff.log_likelihood() + tr.log_likelihood();
   }
 
   template<typename Engine>
