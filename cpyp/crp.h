@@ -105,7 +105,7 @@ class crp {
   // returns +1 or 0 indicating whether a new table was opened
   //   q = probability with which the particular table was selected (optional)
   template<typename F, typename Engine>
-  int increment(const Dish& dish, const F& p0, Engine& eng, double* q = nullptr) {
+  int increment(const Dish& dish, const F& p0, Engine& eng) {
     crp_table_manager& loc = dish_locs_[dish];
     bool share_table = false;
     if (loc.num_customers()) {
@@ -114,19 +114,39 @@ class crp {
       share_table = sample_bernoulli(p_empty, p_share, eng);
     }
 
-    // does the caller want the table selection probability?
-    if (q && !share_table) {
-      if (num_customers_)
-        *q = (strength_ + num_tables_ * discount_) /
-                (num_customers() - num_tables() * discount_ + strength_);
-      else // first customer
-        *q = 1.0;
+    if (share_table) {
+      loc.share_table(discount_, eng);
+    } else {
+      loc.create_table();
+      ++num_tables_;
+    }
+    ++num_customers_;
+    return (share_table ? 0 : 1);
+  }
+
+  // increment when base distribution is not available
+  // returns -1 or 0, indicating whether a table was closed
+  // returns +1 or 0 indicating whether a new table was opened
+  // q = probability with which the particular table was selected
+  // use this to implement Metropolis-Hastings samplers
+  template<typename Engine>
+  int increment_no_base(const Dish& dish, Engine& eng, double* q) {
+    crp_table_manager& loc = dish_locs_[dish];
+    bool share_table = false;
+    if (loc.num_customers()) {
+      const double p_empty = strength_ + num_tables_ * discount_;
+      const double p_share = loc.num_customers() - loc.num_tables() * discount_;
+      share_table = sample_bernoulli(p_empty, p_share, eng);
+
+      // probability of sharing a table | dish
+      *q *= (share_table ? p_share : p_empty) / (p_empty + p_share);
     }
 
     if (share_table) {
-      unsigned selected_table_prevcount = loc.share_table(discount_, eng);
-      if (q) *q = (selected_table_prevcount - discount_) /
-                     (num_customers() - num_tables() * discount_ + strength_);
+      const unsigned selected_table_prevcount = loc.share_table(discount_, eng);
+      // probability of picking this particlar table to share | dish
+      *q *= (selected_table_prevcount - discount_) /
+                  (loc.num_customers() - 1 - loc.num_tables() * discount_);
     } else {
       loc.create_table();
       ++num_tables_;
@@ -136,7 +156,8 @@ class crp {
   }
 
   // returns -1 or 0, indicating whether a table was closed
-  //   q = probability that the selected table will be reselected
+  // q = probability that the selected table will be reselected if
+  //     increment_no_base is called with dish [optional]
   template<typename Engine>
   int decrement(const Dish& dish, Engine& eng, double* q = nullptr) {
     crp_table_manager& loc = dish_locs_[dish];
@@ -145,19 +166,26 @@ class crp {
       dish_locs_.erase(dish);
       --num_tables_;
       --num_customers_;
-      if (q) *q = 1.0;
+      // q = 1 since this is the first customer
       return -1;
     } else {
       unsigned selected_table_postcount = 0;
       int delta = loc.remove_customer(eng, &selected_table_postcount);
       --num_customers_;
       if (delta) --num_tables_;
+
       if (q) {
-        const double z = (num_customers() - num_tables() * discount_ + strength_);
-        if (selected_table_postcount)
-          *q = (selected_table_postcount - discount_) / z;
-        else
-          *q = (strength_ + num_tables_ * discount_) / z;
+        double p_empty = (strength_ + num_tables_ * discount_);
+        double p_share = (loc.num_customers() - loc.num_tables() * discount_);
+        const double z = p_empty + p_share;
+        p_empty /= z;
+        p_share /= z;
+        if (q) {
+          if (selected_table_postcount)
+            *q *= p_share * (selected_table_postcount - discount_) / (loc.num_customers() - loc.num_tables() * discount_);
+          else
+            *q *= p_empty;
+        }
       }
       return delta;
     }

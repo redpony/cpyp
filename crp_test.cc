@@ -12,10 +12,10 @@ static const double p0[] = { 0.1, 0.2, 0.7 };  // actual base distribution
 static const double q0[] = { 0.5, 0.4, 0.1 };  // proposal base distribution
 
 // log likelihood of a CRP including draws from a static base distribution p0
-double llh(const cpyp::crp<int>& crp, const double* p0) {
+double llh(const cpyp::crp<int>& crp, const double* pp0) {
   double l = crp.log_likelihood();
   for (int i = 0; i < 3; ++i)
-    l += crp.num_tables(i) * log(p0[i]);
+    l += crp.num_tables(i) * log(pp0[i]);
   return l;
 }
 
@@ -87,14 +87,11 @@ void test_mh1a() {
       cpyp::crp<int> prev = crp;  // save old state
       double q_old = 1;
       double p_old = exp(llh(crp, p0));
-      bool wasrem = false;
-      if (s > 0) wasrem = crp.decrement(y_i, eng, &q_old);
+      if (s > 0) crp.decrement(y_i, eng, &q_old);
 
       double q_new = 1;
-      bool wasnew = crp.increment(y_i, q0[y_i], eng, &q_new);
+      crp.increment_no_base(y_i, eng, &q_new);
       if (s > 0) {
-        if (wasnew) { q_new *= q0[y_i]; }
-        if (wasrem) { q_old *= q0[y_i]; }
         double p_new = exp(llh(crp, p0));
         double a = p_new / p_old * q_old / q_new;
         ++tmh;
@@ -126,18 +123,20 @@ void test_mh1a() {
   cerr << endl;
 }
 
-#if 0
 static const double p0_a[] = { 0.1, 0.2, 0.7 };  // actual base distribution
 static const double p0_b[] = { 0.6, 0.3, 0.1 };  // actual base of d2
+
+static const double q0_a[] = { 0.05, 0.1, 0.35 };  // estimated base distribution
+static const double q0_b[] = { 0.3, 0.15, 0.05 };  // estimated base of d2
 
 void test_mh2() {
   cpyp::MT19937 eng;
   cpyp::crp<int> a(0.5, 1.0);
   cpyp::crp<int> b(0.5, 1.0);
-  vector<int> hist_a(15, 0);
-  vector<int> hist_b(15, 0);
-  vector<double> ref_a = {3.70004e-06, 0.0144611, 0.0614236, 0.138702, 0.211308, 0.231733, 0.183865, 0.103685, 0.0409419, 0.0114253, 0.00214592, 0.000281003, 2.33002e-05, 7.00007e-07, 2.12303e-07};
-  vector<double> ref_b = {2.90003e-06, 0.00876079, 0.0471061, 0.115841, 0.187615, 0.221488, 0.196102, 0.130352, 0.063905, 0.0224984, 0.00542085, 0.000828908, 7.53008e-05, 4.90005e-06, 1.00001e-07};
+  vector<int> hist_a(16, 0);
+  vector<int> hist_b(16, 0);
+  vector<double> ref_a = {3.70004e-06, 0.0144611, 0.0614236, 0.138702, 0.211308, 0.231733, 0.183865, 0.103685, 0.0409419, 0.0114253, 0.00214592, 0.000281003, 2.33002e-05, 7.00007e-07, 2.12303e-07, 0};
+  vector<double> ref_b = {2.90003e-06, 0.00876079, 0.0471061, 0.115841, 0.187615, 0.221488, 0.196102, 0.130352, 0.063905, 0.0224984, 0.00542085, 0.000828908, 7.53008e-05, 4.90005e-06, 1.00001e-07, 0};
   double ref_t0b = 1.53498;
 
   vector<bool> z(15);
@@ -146,34 +145,29 @@ void test_mh2() {
   double tmh = 0;
   double zz = 0;
   double t0b = 0;
-  for (int s = 0; s < 500000; ++s) {
+  for (int s = 0; s < 200000; ++s) {
     for (int i = 0; i < 15; ++i) {
-      unsigned int y_i = i % 3;
+      const unsigned int y_i = i % 3;
       const bool old_z = z[i];
       cpyp::crp<int> old_a = a;
       cpyp::crp<int> old_b = b;
+      double lp_old = llh(a, p0_a) + llh(b, p0_b);
 
-      bool was_rem = false;
-      double qqq = 1;
-      if (s > 0) was_rem = (z[i] ? b : a).decrement(y_i, eng, &qqq);
-      double p_a = 1.0; //a.prob(y_i, p0_a[y_i]);
-      double p_b = 1.0; //b.prob(y_i, p0_b[y_i]);
-      z[i] = cpyp::sample_bernoulli(p_a, p_b, eng);
-      //double b_new = (z[i] ? p_b : p_a) / (p_a + p_b);
-      //double b_old = (old_z ? p_b : p_a) / (p_a + p_b);
-      bool was_new = false;
-      double qq = 1;
-      if (z[i]) was_new = b.increment(y_i, 1.0, eng, &qq); else was_new = a.increment(y_i, 1.0, eng, &qq);
-      if (s > 0) {
-        double p_new = qq, q_new = qq;
-        if (was_new) {
-          p_new *= (z[i] ? p0_b : p0_a)[y_i];
-        }
-        double p_old = qqq, q_old = qqq;
-        if (was_rem) {
-          p_old *= (old_z ? p0_b : p0_a)[y_i];
-        }
-        double acc = p_new / p_old * q_old / q_new;
+      double q_old = 1.0;
+      double q_new = 1.0;
+      if (s > 0) (z[i] ? b : a).decrement(y_i, eng, &q_old);
+
+      double aa = 0.5;  // these can be better estimates
+      double bb = 0.5;
+      z[i] = cpyp::sample_bernoulli(aa, bb, eng);
+      (z[i] ? b : a).increment_no_base(y_i, eng, &q_new);
+      q_new *= (z[i] ? bb : aa) / (aa + bb);
+      q_old *= (old_z ? bb : aa) / (aa + bb);
+
+      if (s > 0) { 
+        double lp_new = llh(a, p0_a) + llh(b, p0_b);
+        double prat = exp(lp_new - lp_old);
+        double acc = prat * q_old / q_new;
         ++tmh;
         if (acc >= 1.0 || cpyp::sample_uniform01<double>(eng) < acc) { // mh accept
           ++ac;
@@ -184,9 +178,8 @@ void test_mh2() {
         }
       }
     }
-
     // record sample
-    if (s> 500 && s % 30 == 9) {
+    if (s> 200 && s % 10 == 9) {
       assert(a.num_tables() < hist_a.size());
       assert(b.num_tables() < hist_b.size());
       hist_a[a.num_tables()]++; hist_b[b.num_tables()]++; ++c;
@@ -223,7 +216,6 @@ void test_mh2() {
   if (me > 0.01) { cerr << "  ** TOO HIGH **"; }
   cerr << endl;
 }
-#endif
 
 int main() {
   cpyp::MT19937 eng;
@@ -270,7 +262,7 @@ int main() {
   }
   test_mh1();
   test_mh1a();
-//  test_mh2();
+  test_mh2();
   return 0;
 }
 
