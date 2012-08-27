@@ -61,7 +61,7 @@ struct multinomial_distribution {
   template <class Engine>
   unsigned operator()(Engine& eng) const {
     if (probs.size() == 1) return 0;
-    const F random = sum * sample_uniform01<F>(eng);    // random number between [0 and sum)
+    const F random = sum * F(sample_uniform01<double>(eng));    // random number between [0 and sum)
 
     unsigned position = 1;
     F t = probs[0];

@@ -57,6 +57,13 @@ class crp {
       std::cerr << "Bad strength: " << strength_ << " (discount=" << discount_ << ")" << std::endl;
       abort();
     }
+
+    llh_ = lgamma(strength_) - lgamma(strength_ / discount_);
+    if (has_discount_prior())
+      llh_ = Md::log_beta_density(discount_, discount_prior_strength_, discount_prior_beta_);
+    if (has_strength_prior())
+      llh_ += Md::log_gamma_density(strength_ + discount_, strength_prior_shape_, strength_prior_rate_);
+    if (num_tables_ > 0) llh_ = log_likelihood(discount_, strength_);
   }
 
   double discount() const { return discount_; }
@@ -114,9 +121,11 @@ class crp {
     }
 
     if (share_table) {
-      loc.share_table(discount_, eng);
+      unsigned n = loc.share_table(discount_, eng);
+      update_llh_add_customer_to_table_seating(n);
     } else {
       loc.create_table();
+      update_llh_add_customer_to_table_seating(0);
       ++num_tables_;
     }
     ++num_customers_;
@@ -146,7 +155,9 @@ class crp {
       // probability of picking this particlar table to share | dish
       *logq += log((selected_table_prevcount - discount_) /
                   (loc.num_customers() - 1 - loc.num_tables() * discount_));
+      update_llh_add_customer_to_table_seating(selected_table_prevcount);
     } else {
+      update_llh_add_customer_to_table_seating(0);
       loc.create_table();
       ++num_tables_;
     }
@@ -162,6 +173,7 @@ class crp {
     crp_table_manager& loc = dish_locs_[dish];
     assert(loc.num_customers());
     if (loc.num_customers() == 1) {
+      update_llh_remove_customer_from_table_seating(1);
       dish_locs_.erase(dish);
       --num_tables_;
       --num_customers_;
@@ -170,6 +182,7 @@ class crp {
     } else {
       unsigned selected_table_postcount = 0;
       int delta = loc.remove_customer(eng, &selected_table_postcount);
+      update_llh_remove_customer_from_table_seating(selected_table_postcount + 1);
       --num_customers_;
       if (delta) --num_tables_;
 
@@ -202,7 +215,26 @@ class crp {
   }
 
   double log_likelihood() const {
-    return log_likelihood(discount_, strength_);
+    return llh_;
+//    return log_likelihood(discount_, strength_);
+  }
+
+  // call this before changing the number of tables / customers
+  void update_llh_add_customer_to_table_seating(unsigned n) {
+    unsigned t = 0;
+    if (n == 0) t = 1;
+    llh_ -= log(strength_ + num_customers_);
+    if (t == 1) llh_ += log(discount_) + log(strength_ / discount_ + num_tables_);
+    if (n > 0) llh_ += log(n - discount_);
+  }
+
+  // call this before changing the number of tables / customers
+  void update_llh_remove_customer_from_table_seating(unsigned n) {
+    unsigned t = 0;
+    if (n == 1) t = 1;
+    llh_ += log(strength_ + num_customers_ - 1);
+    if (t == 1) llh_ -= log(discount_) + log(strength_ / discount_ + num_tables_ - 1);
+    if (n > 1) llh_ -= log(n - discount_ - 1);
   }
 
   // taken from http://en.wikipedia.org/wiki/Chinese_restaurant_process
@@ -221,10 +253,29 @@ class crp {
           lp += lgamma(strength) - lgamma(strength / discount);
         lp += - lgamma(strength + num_customers_)
              + num_tables_ * log(discount) + lgamma(strength / discount + num_tables_);
+        // above line implies
+        // 1) when adding a customer to a restaurant containing N customers:
+        //    lp -= log(strength + N)    [because \Gamma(s+N+1) = (s+N)\Gamma(s+N)
+        // 2) when removing a customer from a restaurant containing N customers:
+        //    lp += log(strength + N - 1)  [because \Gamma(s+N) = (s+N-1)\Gamma(s+N-1)]
+        // 3) when adding a table to a restaurant containing T tables:
+        //    lp += log(discount) + log(s / d + T)
+        // 4) when removing a table from a restuarant containint T tables:
+        //    lp -= log(discount) + log(s / d + T - 1)
+
         assert(std::isfinite(lp));
         for (auto& dish_loc : dish_locs_)
           for (auto& bin : dish_loc.second)
             lp += (lgamma(bin.first - discount) - r) * bin.second;
+         // above implies
+         // 1) when adding to a table seating N > 1 customers
+         //    lp += log(N - discount)
+         // 2) when adding a new table
+         //    do nothing
+         // 3) when removing a customer from a table with N > 1 customers
+         //    lp -= log(N - discount - 1)
+         // 4) when closing a table
+         //    do nothing
       } else if (!discount) { // discount == 0.0 (ie, Dirichlet Process)
         lp += lgamma(strength) + num_tables_ * log(strength) - lgamma(strength + num_tables_);
         assert(std::isfinite(lp));
@@ -234,6 +285,7 @@ class crp {
         assert(!"discount less than 0 detected!");
       }
     }
+    if(!std::isfinite(lp)) { std::cerr << *this << std::endl; }
     assert(std::isfinite(lp));
     return lp;
   }
@@ -242,23 +294,26 @@ class crp {
   void resample_hyperparameters(Engine& eng, const unsigned nloop = 5, const unsigned niterations = 10) {
     assert(has_discount_prior() || has_strength_prior());
     if (num_customers() == 0) return;
+    double s = strength_;
+    double d = discount_;
     for (unsigned iter = 0; iter < nloop; ++iter) {
       if (has_strength_prior()) {
-        strength_ = slice_sampler1d([this](double prop_s) { return this->log_likelihood(discount_, prop_s); },
-                               strength_, eng, -discount_ + std::numeric_limits<double>::min(),
-                               std::numeric_limits<double>::infinity(), 0.0, niterations, 100*niterations);
+        s = slice_sampler1d([this,d](double prop_s) { return this->log_likelihood(d, prop_s); },
+                            s, eng, -d + std::numeric_limits<double>::min(),
+                            std::numeric_limits<double>::infinity(), 0.0, niterations, 100*niterations);
       }
       if (has_discount_prior()) {
         double min_discount = std::numeric_limits<double>::min();
-        if (strength_ < 0.0) min_discount -= strength_;
-        discount_ = slice_sampler1d([this](double prop_d) { return this->log_likelihood(prop_d, strength_); },
-                               discount_, eng, min_discount,
-                               1.0, 0.0, niterations, 100*niterations);
+        if (s < 0.0) min_discount -= s;
+        d = slice_sampler1d([this,s](double prop_d) { return this->log_likelihood(prop_d, s); },
+                            d, eng, min_discount,
+                            1.0, 0.0, niterations, 100*niterations);
       }
     }
-    strength_ = slice_sampler1d([this](double prop_s) { return this->log_likelihood(discount_, prop_s); },
-                             strength_, eng, -discount_,
-                             std::numeric_limits<double>::infinity(), 0.0, niterations, 100*niterations);
+    s = slice_sampler1d([this,d](double prop_s) { return this->log_likelihood(d, prop_s); },
+                        s, eng, -d + std::numeric_limits<double>::min(),
+                        std::numeric_limits<double>::infinity(), 0.0, niterations, 100*niterations);
+    set_hyperparameters(d, s);
   }
 
   void print(std::ostream* out) const {
@@ -285,6 +340,7 @@ class crp {
     std::swap(discount_prior_beta_, b.discount_prior_beta_);
     std::swap(strength_prior_shape_, b.strength_prior_shape_);
     std::swap(strength_prior_rate_, b.strength_prior_rate_);
+    std::swap(llh_, b.llh_);
   }
 
  private:
@@ -302,6 +358,8 @@ class crp {
   // optional gamma prior on strength_ (NaN if no prior)
   double strength_prior_shape_;
   double strength_prior_rate_;
+
+  double llh_;  // llh of current partition structure
 };
 
 template<typename T>

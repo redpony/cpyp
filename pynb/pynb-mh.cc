@@ -2,11 +2,14 @@
 #include <unordered_map>
 #include <cstdlib>
 
+#include "cpyp/logval.h"
 #include "corpus/corpus.h"
 #include "cpyp/m.h"
 #include "cpyp/random.h"
 #include "cpyp/crp.h"
 #include "cpyp/tied_parameter_resampler.h"
+
+typedef LogVal<double> prob_t;
 
 using namespace std;
 using namespace cpyp;
@@ -24,7 +27,7 @@ double log_likelihood(const crp<short>& dt,
 
 int main(int argc, char** argv) {
   if (argc != 4) {
-    cerr << argv[0] << " <training.txt> <nclasses> <nsamples>\n\nEstimate an naive Bayes model with PY priors.\nInput format: each line in <training.txt> is a document\n";
+    cerr << argv[0] << " <training.txt> <nclasses> <nsamples>\n\nEstimate a naive Bayes model with PY priors.\nInput format: each line in <training.txt> is a document\n";
     return 1;
   }
   MT19937 eng;
@@ -41,7 +44,7 @@ int main(int argc, char** argv) {
   vector<short> z(corpus.size());  // label indicators
   vector<crp<unsigned>> label_term(labels, crp<unsigned>(1,1,1,1));
   crp<short> label(1,1,1,1); // label.prob(k, ...) = conditional prior probability of label
-  vector<double> probs(labels);
+  vector<prob_t> probs(labels);
 
   // used for MH updates
   crp<unsigned> old_label_term(1,1,1,1);
@@ -65,26 +68,25 @@ int main(int argc, char** argv) {
 
       // compute posteriors z_i = k
       for (unsigned k = 0; k < labels; ++k) {
-        probs[k] = log(label.prob(k, uniform_label));
+        probs[k] = prob_t(label.prob(k, uniform_label));
         for (auto& w : doc) {
-          probs[k] += log(label_term[k].prob(w, uniform_word));
+          probs[k] *= prob_t(label_term[k].prob(w, uniform_word));
         }
-        probs[k] = exp(probs[k]); assert(probs[k] > 0);
       }
-      const double q_old = probs[z[i]];
+      const double q_old = log(probs[z[i]]);
 
-      multinomial_distribution<double> mult(probs);
+      multinomial_distribution<prob_t> mult(probs);
       unsigned k = mult(eng);  // sample proposal z_i
       if (sample == 0) { k = labels * sample_uniform01<double>(eng); }
       pre_proposed_label_term = label_term[k];
-      const double q_new = probs[k];
+      const double q_new = log(probs[k]);
 
       label.increment(k, uniform_label, eng);
       for (auto& w : doc)
         label_term[k].increment(w, uniform_word, eng);
       double p_new = log_likelihood(label, uniform_label, label_term, uniform_word);
       if (sample > 0) {
-        double acc = exp(p_new - p_old) * q_old / q_new;
+        double acc = exp(p_new - p_old + q_old - q_new);
         if (acc > 1.0 || sample_uniform01<double>(eng) > acc) {
           p_old = p_new;
           mh_acc++;
