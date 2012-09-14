@@ -20,7 +20,7 @@ double log_likelihood(const crp<short>& dt,
                       double ut,
                       const vector<crp<unsigned>>& tt,
                       double uw) {
-  double llh = dt.num_tables() * log(ut);
+  double llh = dt.log_likelihood() + dt.num_tables() * log(ut);
   for (auto& crp : tt) llh += crp.log_likelihood() + crp.num_tables() * log(uw);
   return llh;
 }
@@ -129,6 +129,8 @@ int main(int argc, char** argv) {
     cerr << endl;
   }
   cerr << label << endl;
+  for (auto lbl : z)
+    cout << lbl << endl;
   return 0;
 }
 
