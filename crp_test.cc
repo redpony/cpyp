@@ -4,6 +4,7 @@
 #include <string>
 
 #include "cpyp/crp.h"
+#include "cpyp/mf_crp.h"
 #include "cpyp/random.h"
 
 using namespace std;
@@ -216,6 +217,71 @@ void test_mh2() {
   cerr << endl;
 }
 
+void test_mfcrp() {
+  vector<double> ref_up = {0.0152302, 0.0754287, 0.153957, 0.209485, 0.213071, 0.16726, 0.101233, 0.0460308, 0.0149256, 0.003075, 0.00030408};
+  vector<double> ref_down = {0.185252, 0.32385, 0.271888, 0.145849, 0.0548223, 0.0149361, 0.00294062, 0.0004185, 4.074e-05, 2.3e-06, 4e-08};
+
+  cpyp::MT19937 eng;
+  long double p0[2]{1.0,1.0}; // pa(0), pb(0)
+  double lam[2]{0.3,0.7};
+  vector<double> hist_upstairs(11, 0);
+  vector<double> hist_downstairs(11, 0);
+  int c = 0;
+  for (int n = 0; n < 200000; ++n) {
+    cpyp::mf_crp<2, unsigned> crp(0.5, 1.0);
+    int upstairs = 0;
+    int downstairs = 0;
+    for (int i = 0; i < 10; ++i) {
+      unsigned obs = 0;
+      pair<unsigned, int> floor_count = crp.increment(obs, p0, lam, eng);
+      if (floor_count.second) (floor_count.first ? upstairs : downstairs)++;
+    }
+    // resample some stuff
+    for (int j = 0; j < 4; ++j) {
+      for (int i = 0; i < 10; ++i) {
+        unsigned obs = 0;
+        pair<unsigned, int> floor_count = crp.decrement(obs, eng);
+        if (floor_count.second) (floor_count.first ? upstairs : downstairs)--;
+        floor_count = crp.increment(obs, p0, lam, eng);
+        if (floor_count.second) (floor_count.first ? upstairs : downstairs)++;
+      }
+    }
+    hist_downstairs[downstairs] += 1.0;
+    hist_upstairs[upstairs] += 1.0;
+    ++c;
+  }
+  cerr << "Upstairs:\n";
+  int j = 0;
+  double max_up = 0;
+  double tot_up = 0;
+  for (auto& d : hist_upstairs) {
+    double diff = d / c - ref_up[j++];
+    cerr << diff << endl;
+    if (fabs(diff) > max_up) max_up = fabs(diff);
+    tot_up += fabs(diff);
+  }
+  if (max_up > 0.01) { cerr << "** TOO BIG "; }
+  cerr << "max_up=" << max_up << endl;
+  tot_up /= 11;
+  if (tot_up > 0.005) { cerr << "*** TOO BIG "; }
+  cerr << "avg_up=" << tot_up << endl;
+  cerr << "Downstairs:\n";
+  j = 0;
+  double tot_down = 0;
+  double max_down = 0;
+  for (auto& d : hist_downstairs) {
+    double diff = (d / c - ref_down[j++]);
+    cerr << diff << endl;
+    if (fabs(diff) > max_down) max_down = fabs(diff);
+    tot_down += fabs(diff);
+  }
+  if (max_down > 0.01) { cerr << "** TOO BIG "; }
+  cerr << "max_down=" << max_down << endl;
+  tot_down /= 11;
+  if (tot_down > 0.005) { cerr << "*** TOO BIG "; }
+  cerr << "avg_down=" << tot_down << endl;
+}
+
 int main() {
   cpyp::MT19937 eng;
   double tot = 0;
@@ -262,6 +328,7 @@ int main() {
   test_mh1();
   test_mh1a();
   test_mh2();
+  test_mfcrp();
   return 0;
 }
 

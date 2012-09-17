@@ -28,6 +28,7 @@ struct crp_histogram {
     decrement(from_bin, delta);
     increment(to_bin, delta);
   }
+  bool empty() const { return data.empty(); }
   inline const_iterator begin() const { return data.begin(); }
   inline const_iterator end() const { return data.end(); }
   void swap(crp_histogram& other) {
@@ -105,7 +106,7 @@ struct crp_table_manager {
         auto i = h[floor].begin();
         for (; i != end; ++i) {
           // sample randomly, i.e. *don't* discount
-          const double thresh = i->first * i->second;
+          const int thresh = i->first * i->second;
           if (thresh > r) return std::make_pair(floor, i->first);
           r -= thresh;
         }
@@ -142,10 +143,11 @@ void swap(crp_table_manager<N>& a, crp_table_manager<N>& b) {
 template <unsigned N>
 std::ostream& operator<<(std::ostream& os, const crp_table_manager<N>& tm) {
   os << '[' << tm.num_customers() << " customer" << (tm.num_customers() == 1 ? "" : "s")
-     << " at " << tm.num_tables() << " table" << (tm.num_tables() == 1 ? "" : "s") << " ||| ";
+     << " at " << tm.num_tables() << " table" << (tm.num_tables() == 1 ? "" : "s") << " |||";
   bool first = true;
   for (unsigned floor = 0; floor < N; ++floor) {
-    os << "floor:" << (floor+1) << '/' << N << ' ';
+    os << " floor:" << (floor+1) << '/' << N << ' ';
+    if (tm.h[floor].begin() == tm.h[floor].end()) { os << "EMPTY"; }
     for (auto& table : tm.h[floor]) {
       if (first) first = false; else os << "  --  ";
       os << '(' << table.first << ") x " << table.second;

@@ -1,5 +1,5 @@
-#ifndef _CPYP_CRP_H_
-#define _CPYP_CRP_H_
+#ifndef _CPYP_MF_CRP_H_
+#define _CPYP_MF_CRP_H_
 
 #include <iostream>
 #include <numeric>
@@ -21,10 +21,10 @@ namespace cpyp {
 // this implementation assumes that the observation likelihoods are either 1 (if they
 // are identical to the "parameter" drawn from G_0) or 0. This is fine for most NLP
 // applications but violated in PYP mixture models etc.
-template <typename Dish, typename DishHash = std::hash<Dish> >
-class crp {
+template <unsigned NumFloors, typename Dish, typename DishHash = std::hash<Dish> >
+class mf_crp {
  public:
-  crp(double disc, double strength) :
+  mf_crp(double disc, double strength) :
       num_tables_(),
       num_customers_(),
       discount_(disc),
@@ -36,7 +36,7 @@ class crp {
     check_hyperparameters();
   }
 
-  crp(double d_strength, double d_beta, double c_shape, double c_rate, double d = 0.8, double c = 1.0) :
+  mf_crp(double d_strength, double d_beta, double c_shape, double c_rate, double d = 0.8, double c = 1.0) :
       num_tables_(),
       num_customers_(),
       discount_(d),
@@ -106,85 +106,69 @@ class crp {
   unsigned num_customers(const Dish& dish) const {
     auto it = dish_locs_.find(dish);
     if (it == dish_locs_.end()) return 0;
-    return it->second.num_customers();
+    return it->num_customers();
   }
 
-  // returns +1 or 0 indicating whether a new table was opened
-  template<typename F, typename Engine>
-  int increment(const Dish& dish, const F& p0, Engine& eng) {
-    crp_table_manager<1>& loc = dish_locs_[dish];
+  // returns (floor,table delta) where table delta +1 or 0 indicates whether a new table was opened or not
+  template <class InputIterator, class InputIterator2, typename Engine>
+  std::pair<unsigned,int> increment(const Dish& dish, InputIterator p0i, InputIterator2 lambdas, Engine& eng) {
+    typedef decltype(*p0i + 0.0) F;
+
+    const F marginal_p0 = std::inner_product(p0i, p0i + NumFloors, lambdas, F(0.0));
+    assert(marginal_p0 <= F(1.000001));
+
+    crp_table_manager<NumFloors>& loc = dish_locs_[dish];
     bool share_table = false;
     if (loc.num_customers()) {
-      const F p_empty = F(strength_ + num_tables_ * discount_) * p0;
+      const F p_empty = F(strength_ + num_tables_ * discount_) * marginal_p0;
       const F p_share = F(loc.num_customers() - loc.num_tables() * discount_);
       share_table = sample_bernoulli(p_empty, p_share, eng);
     }
 
+    unsigned floor = 0;
     if (share_table) {
       unsigned n = loc.share_table(discount_, eng);
       update_llh_add_customer_to_table_seating(n);
     } else {
-      loc.create_table();
+      if (NumFloors > 1) { // sample floor
+        F r = F(sample_uniform01<double>(eng)) * marginal_p0;
+        for (unsigned i = 0; i < NumFloors; ++i) {
+          r -= (*p0i) * (*lambdas);
+          ++p0i;
+          ++lambdas;
+          if (r <= F(0.0)) { floor = i; break; }
+        }
+      }
+      loc.create_table(floor);
       update_llh_add_customer_to_table_seating(0);
       ++num_tables_;
     }
     ++num_customers_;
-    return (share_table ? 0 : 1);
-  }
-
-  // increment when base distribution is not available
-  // returns -1 or 0, indicating whether a table was closed
-  // returns +1 or 0 indicating whether a new table was opened
-  // logq = probability with which the particular table was selected
-  // use this to implement Metropolis-Hastings samplers
-  template<typename Engine>
-  int increment_no_base(const Dish& dish, Engine& eng, double* logq) {
-    crp_table_manager<1>& loc = dish_locs_[dish];
-    bool share_table = false;
-    if (loc.num_customers()) {
-      const double p_empty = strength_ + num_tables_ * discount_;
-      const double p_share = loc.num_customers() - loc.num_tables() * discount_;
-      share_table = sample_bernoulli(p_empty, p_share, eng);
-
-      // probability of sharing a table | dish
-      *logq += log((share_table ? p_share : p_empty) / (p_empty + p_share));
-    }
-
-    if (share_table) {
-      const unsigned selected_table_prevcount = loc.share_table(discount_, eng);
-      // probability of picking this particlar table to share | dish
-      *logq += log((selected_table_prevcount - discount_) /
-                  (loc.num_customers() - 1 - loc.num_tables() * discount_));
-      update_llh_add_customer_to_table_seating(selected_table_prevcount);
-    } else {
-      update_llh_add_customer_to_table_seating(0);
-      loc.create_table();
-      ++num_tables_;
-    }
-    ++num_customers_;
-    return (share_table ? 0 : 1);
+    return std::make_pair(floor, share_table ? 0 : 1);
   }
 
   // returns -1 or 0, indicating whether a table was closed
   // logq = probability that the selected table will be reselected if
   //     increment_no_base is called with dish [optional]
   template<typename Engine>
-  int decrement(const Dish& dish, Engine& eng, double* logq = nullptr) {
-    crp_table_manager<1>& loc = dish_locs_[dish];
+  std::pair<unsigned,int> decrement(const Dish& dish, Engine& eng, double* logq = nullptr) {
+    crp_table_manager<NumFloors>& loc = dish_locs_[dish];
     assert(loc.num_customers());
     if (loc.num_customers() == 1) {
       update_llh_remove_customer_from_table_seating(1);
+      unsigned floor = 0;
+      for (; loc.h[floor].empty(); ++floor)
       dish_locs_.erase(dish);
       --num_tables_;
       --num_customers_;
       // q = 1 since this is the first customer
-      return -1;
+      return std::make_pair(floor, -1);
     } else {
       unsigned selected_table_postcount = 0;
-      int delta = loc.remove_customer(eng, &selected_table_postcount).second;
+      const std::pair<unsigned,int> delta = loc.remove_customer(eng, &selected_table_postcount);
       update_llh_remove_customer_from_table_seating(selected_table_postcount + 1);
       --num_customers_;
-      if (delta) --num_tables_;
+      if (delta.second) --num_tables_;
 
       if (logq) {
         double p_empty = (strength_ + num_tables_ * discount_);
@@ -202,14 +186,17 @@ class crp {
     }
   }
 
-  template <typename F>
-  F prob(const Dish& dish, const F& p0) const {
+  template <class InputIterator, class InputIterator2>
+  decltype(**((InputIterator*) 0) + 0.0) prob(const Dish& dish, InputIterator p0i, InputIterator2 lambdas) {
+    typedef decltype(*p0i + 0.0) F;
+    const F marginal_p0 = std::inner_product(p0i, p0i + NumFloors, lambdas, F(0.0));
+    assert(marginal_p0 <= F(1.000001));
     auto it = dish_locs_.find(dish);
     const F r = F(num_tables_ * discount_ + strength_);
     if (it == dish_locs_.end()) {
-      return r * p0 / F(num_customers_ + strength_);
+      return r * marginal_p0 / F(num_customers_ + strength_);
     } else {
-      return (F(it->second.num_customers() - discount_ * it->second.num_tables()) + r * p0) /
+      return (F(it->second.num_customers() - discount_ * it->second.num_tables()) + r * marginal_p0) /
                    F(num_customers_ + strength_);
     }
   }
@@ -237,7 +224,7 @@ class crp {
     if (n > 1) llh_ -= log(n - discount_ - 1);
   }
 
-  // taken from http://en.wikipedia.org/wiki/Chinese_restaurant_process
+  // adapted from http://en.wikipedia.org/wiki/Chinese_restaurant_process
   // does not include P_0's
   double log_likelihood(const double& discount, const double& strength) const {
     double lp = 0.0;
@@ -265,8 +252,9 @@ class crp {
 
         assert(std::isfinite(lp));
         for (auto& dish_loc : dish_locs_)
-          for (auto& bin : dish_loc.second.h[0])
-            lp += (lgamma(bin.first - discount) - r) * bin.second;
+          for (unsigned floor = 0; floor < NumFloors; ++floor)
+            for (auto& bin : dish_loc.second.h[floor])
+              lp += (lgamma(bin.first - discount) - r) * bin.second;
          // above implies
          // 1) when adding to a table seating N > 1 customers
          //    lp += log(N - discount)
@@ -322,7 +310,7 @@ class crp {
       (*out) << dish_loc.first << " : " << dish_loc.second << std::endl;
   }
 
-  typedef typename std::unordered_map<Dish, crp_table_manager<1>, DishHash>::const_iterator const_iterator;
+  typedef typename std::unordered_map<Dish, crp_table_manager<NumFloors>, DishHash>::const_iterator const_iterator;
   const_iterator begin() const {
     return dish_locs_.begin();
   }
@@ -346,7 +334,7 @@ class crp {
  private:
   unsigned num_tables_;
   unsigned num_customers_;
-  std::unordered_map<Dish, crp_table_manager<1>, DishHash> dish_locs_;
+  std::unordered_map<Dish, crp_table_manager<NumFloors>, DishHash> dish_locs_;
 
   double discount_;
   double strength_;
@@ -362,13 +350,13 @@ class crp {
   double llh_;  // llh of current partition structure
 };
 
-template<typename T>
-void swap(crp<T>& a, crp<T>& b) {
+template<unsigned N,typename T>
+void swap(mf_crp<N,T>& a, mf_crp<N,T>& b) {
   a.swap(b);
 }
 
-template <typename T,typename H>
-std::ostream& operator<<(std::ostream& o, const crp<T,H>& c) {
+template <unsigned N,typename T,typename H>
+std::ostream& operator<<(std::ostream& o, const mf_crp<N,T,H>& c) {
   c.print(&o);
   return o;
 }
