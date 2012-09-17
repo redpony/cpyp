@@ -112,7 +112,7 @@ class crp {
   // returns +1 or 0 indicating whether a new table was opened
   template<typename F, typename Engine>
   int increment(const Dish& dish, const F& p0, Engine& eng) {
-    crp_table_manager& loc = dish_locs_[dish];
+    crp_table_manager<1>& loc = dish_locs_[dish];
     bool share_table = false;
     if (loc.num_customers()) {
       const F p_empty = F(strength_ + num_tables_ * discount_) * p0;
@@ -139,7 +139,7 @@ class crp {
   // use this to implement Metropolis-Hastings samplers
   template<typename Engine>
   int increment_no_base(const Dish& dish, Engine& eng, double* logq) {
-    crp_table_manager& loc = dish_locs_[dish];
+    crp_table_manager<1>& loc = dish_locs_[dish];
     bool share_table = false;
     if (loc.num_customers()) {
       const double p_empty = strength_ + num_tables_ * discount_;
@@ -170,7 +170,7 @@ class crp {
   //     increment_no_base is called with dish [optional]
   template<typename Engine>
   int decrement(const Dish& dish, Engine& eng, double* logq = nullptr) {
-    crp_table_manager& loc = dish_locs_[dish];
+    crp_table_manager<1>& loc = dish_locs_[dish];
     assert(loc.num_customers());
     if (loc.num_customers() == 1) {
       update_llh_remove_customer_from_table_seating(1);
@@ -181,7 +181,7 @@ class crp {
       return -1;
     } else {
       unsigned selected_table_postcount = 0;
-      int delta = loc.remove_customer(eng, &selected_table_postcount);
+      int delta = loc.remove_customer(eng, &selected_table_postcount).second;
       update_llh_remove_customer_from_table_seating(selected_table_postcount + 1);
       --num_customers_;
       if (delta) --num_tables_;
@@ -265,7 +265,7 @@ class crp {
 
         assert(std::isfinite(lp));
         for (auto& dish_loc : dish_locs_)
-          for (auto& bin : dish_loc.second)
+          for (auto& bin : dish_loc.second.h[0])
             lp += (lgamma(bin.first - discount) - r) * bin.second;
          // above implies
          // 1) when adding to a table seating N > 1 customers
@@ -322,7 +322,7 @@ class crp {
       (*out) << dish_loc.first << " : " << dish_loc.second << std::endl;
   }
 
-  typedef typename std::unordered_map<Dish, crp_table_manager, DishHash>::const_iterator const_iterator;
+  typedef typename std::unordered_map<Dish, crp_table_manager<1>, DishHash>::const_iterator const_iterator;
   const_iterator begin() const {
     return dish_locs_.begin();
   }
@@ -346,7 +346,7 @@ class crp {
  private:
   unsigned num_tables_;
   unsigned num_customers_;
-  std::unordered_map<Dish, crp_table_manager, DishHash> dish_locs_;
+  std::unordered_map<Dish, crp_table_manager<1>, DishHash> dish_locs_;
 
   double discount_;
   double strength_;
