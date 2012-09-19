@@ -9,10 +9,9 @@
 #include "cpyp/mf_crp.h"
 #include "cpyp/tied_parameter_resampler.h"
 
-// A not very memory-efficient implementation of an N-gram LM based on PYPs
-// as described in Y.-W. Teh. (2006) A Hierarchical Bayesian Language Model
-// based on Pitman-Yor Processes. In Proc. ACL.
-
+// A not very memory-efficient implementation of a domain adapting
+// HPYP language model, as described by Wood & Teh (AISTATS, 2009)
+//
 // I use templates to handle the recursive formalation of the prior, so
 // the order of the model has to be specified here, at compile time:
 #define kORDER 3
