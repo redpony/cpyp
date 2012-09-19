@@ -157,7 +157,10 @@ class mf_crp {
     if (loc.num_customers() == 1) {
       update_llh_remove_customer_from_table_seating(1);
       unsigned floor = 0;
-      for (; loc.h[floor].empty(); ++floor)
+      for (; floor < NumFloors; ++floor)
+        if (!loc.h[floor].empty()) break;
+      assert(floor < NumFloors);
+      
       dish_locs_.erase(dish);
       --num_tables_;
       --num_customers_;
@@ -187,7 +190,7 @@ class mf_crp {
   }
 
   template <class InputIterator, class InputIterator2>
-  decltype(**((InputIterator*) 0) + 0.0) prob(const Dish& dish, InputIterator p0i, InputIterator2 lambdas) {
+  decltype(**((InputIterator*) 0) + 0.0) prob(const Dish& dish, InputIterator p0i, InputIterator2 lambdas) const {
     typedef decltype(*p0i + 0.0) F;
     const F marginal_p0 = std::inner_product(p0i, p0i + NumFloors, lambdas, F(0.0));
     assert(marginal_p0 <= F(1.000001));

@@ -72,7 +72,6 @@ void ReadFromFile(const std::string& filename,
                   std::vector<std::vector<unsigned> >* src,
                   std::set<unsigned>* src_vocab) {
   src->clear();
-  src_vocab->clear();
   std::cerr << "Reading from " << filename << std::endl;
   std::ifstream in(filename);
   assert(in);
