@@ -14,6 +14,7 @@ cpyp
     - Hierarchical Pitman-Yor process language model ([Teh, 2006](http://acl.ldc.upenn.edu/P/P06/P06-1124.pdf))
     - Domain adapting graphical Pitman-Yor process language model ([Wood & Teh, 2009](http://jmlr.csail.mit.edu/proceedings/papers/v5/wood09a/wood09a.pdf))
     - Latent Pitman-Yor allocation topic model (LDA with the D replaced)
+    - Unsupervised “Naive Bayes” single-membership clustering, using fast Metropolis-Hastings sampling
 
 ## System Requirements
 This software requires a C++ compiler that implements the [C++11 standard](http://en.wikipedia.org/wiki/C%2B%2B11), for example [gcc-4.7](http://gcc.gnu.org/) or more recent. No other libraries or tools are required.
