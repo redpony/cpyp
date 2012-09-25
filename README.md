@@ -1,7 +1,7 @@
 cpyp
 ====
 
-C++ library for modeling with Pitman-Yor processes
+`cpyp` is a C++ library for nonparametric Bayesian modeling with Pitman-Yor processes
 
 ## Features
 - Memory-efficient histogram-based sampling scheme proposed by [Blunsom et al. (2009)](http://www.clg.ox.ac.uk/blunsom/pubs/blunsom-acl09-short.pdf)
@@ -9,6 +9,7 @@ C++ library for modeling with Pitman-Yor processes
 - Beta/gamma priors on discount/strength hyperparameters
 - Example implementations
     - Hierarchical Pitman-Yor process language model ([Teh, 2006](http://acl.ldc.upenn.edu/P/P06/P06-1124.pdf))
+    - Domain adapting graphical Pitman-Yor process language model ([Wood & Teh, 2009](http://jmlr.csail.mit.edu/proceedings/papers/v5/wood09a/wood09a.pdf))
     - Latent Pitman-Yor allocation topic model (LDA with the D replaced)
 
 ## System Requirements
