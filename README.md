@@ -1,7 +1,7 @@
 cpyp
 ====
 
-`cpyp` is a C++ library for nonparametric Bayesian modeling with Pitman-Yor processes
+`cpyp` is a C++ library for nonparametric Bayesian modeling with Pitman-Yor process priors
 
 ## Features
 - Memory-efficient histogram-based sampling scheme proposed by [Blunsom et al. (2009)](http://www.clg.ox.ac.uk/blunsom/pubs/blunsom-acl09-short.pdf)
