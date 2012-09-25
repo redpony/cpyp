@@ -5,8 +5,11 @@ cpyp
 
 ## Features
 - Memory-efficient histogram-based sampling scheme proposed by [Blunsom et al. (2009)](http://www.clg.ox.ac.uk/blunsom/pubs/blunsom-acl09-short.pdf)
-- Full range of PYP hyperparameters (0 > strength > -discount, discount = 0, etc.)
-- Beta/gamma priors on discount/strength hyperparameters
+- Full range of PYP hyperparameters (0 ≤ discount < 1, strength > -discount, etc.)
+- Beta priors on discount hyperparameter
+- (Conditional, given discount) Gamma prior on strength hyperparameter
+- Tied hyperparameters
+- Slice sampling for hyperparameter inference
 - Example implementations
     - Hierarchical Pitman-Yor process language model ([Teh, 2006](http://acl.ldc.upenn.edu/P/P06/P06-1124.pdf))
     - Domain adapting graphical Pitman-Yor process language model ([Wood & Teh, 2009](http://jmlr.csail.mit.edu/proceedings/papers/v5/wood09a/wood09a.pdf))
