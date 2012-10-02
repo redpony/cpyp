@@ -74,7 +74,7 @@ struct crp_table_manager {
   unsigned share_table(const double discount, Engine& eng) {
     const double z = customers - discount * num_tables();
     double r = z * sample_uniform01<double>(eng);
-    const auto floor_count = [&] {
+    const auto floor_count = [&]()->std::pair<unsigned,int> {
       for (unsigned floor = 0; floor < NumFloors; ++floor) {
         const auto end = h[floor].end();
         auto i = h[floor].begin();
@@ -100,7 +100,7 @@ struct crp_table_manager {
   template<typename Engine>
   inline std::pair<unsigned,int> remove_customer(Engine& eng, unsigned* selected_table_postcount) {
     int r = sample_uniform01<double>(eng) * num_customers();
-    const auto floor_count = [&] {
+    const auto floor_count = [&]()->std::pair<unsigned,int> {
       for (unsigned floor = 0; floor < NumFloors; ++floor) {
         const auto end = h[floor].end();
         auto i = h[floor].begin();
