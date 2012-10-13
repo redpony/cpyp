@@ -35,6 +35,9 @@ struct crp_histogram {
     std::swap(data, other.data);
   }
 
+  template<class Archive> void serialize(Archive& ar, const unsigned int version) {
+    ar & data;
+  }
  private:
   MAPTYPE data;
 };
@@ -131,6 +134,12 @@ struct crp_table_manager {
   unsigned customers;
   unsigned tables;
   crp_histogram h[NumFloors];
+  template<class Archive> void serialize(Archive& ar, const unsigned int version) {
+    ar & customers;
+    ar & tables;
+    for (unsigned i = 0; i < NumFloors; ++i)
+      ar & h[i];
+  }
 };
 
 template <unsigned N>

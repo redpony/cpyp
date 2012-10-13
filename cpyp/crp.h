@@ -24,6 +24,18 @@ namespace cpyp {
 template <typename Dish, typename DishHash = std::hash<Dish> >
 class crp {
  public:
+  crp() :
+      num_tables_(),
+      num_customers_(),
+      discount_(0.1),
+      strength_(1.0),
+      discount_prior_strength_(std::numeric_limits<double>::quiet_NaN()),
+      discount_prior_beta_(std::numeric_limits<double>::quiet_NaN()),
+      strength_prior_shape_(std::numeric_limits<double>::quiet_NaN()),
+      strength_prior_rate_(std::numeric_limits<double>::quiet_NaN()) {
+    check_hyperparameters();
+  }
+
   crp(double disc, double strength) :
       num_tables_(),
       num_customers_(),
@@ -204,6 +216,7 @@ class crp {
 
   template <typename F>
   F prob(const Dish& dish, const F& p0) const {
+    if (num_tables_ == 0) return p0;
     auto it = dish_locs_.find(dish);
     const F r = F(num_tables_ * discount_ + strength_);
     if (it == dish_locs_.end()) {
@@ -285,7 +298,6 @@ class crp {
         assert(!"discount less than 0 detected!");
       }
     }
-    if(!std::isfinite(lp)) { std::cerr << *this << std::endl; }
     assert(std::isfinite(lp));
     return lp;
   }
@@ -343,6 +355,18 @@ class crp {
     std::swap(llh_, b.llh_);
   }
 
+  template<class Archive> void serialize(Archive& ar, const unsigned int version) {
+    ar & num_tables_;
+    ar & num_customers_;
+    ar & discount_;
+    ar & strength_;
+    ar & discount_prior_strength_;
+    ar & discount_prior_beta_;
+    ar & strength_prior_shape_;
+    ar & strength_prior_rate_;
+    ar & llh_;  // llh of current partition structure
+    ar & dish_locs_;
+  }
  private:
   unsigned num_tables_;
   unsigned num_customers_;

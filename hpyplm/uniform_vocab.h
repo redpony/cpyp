@@ -17,7 +17,11 @@ struct UniformVocabulary {
   template<typename Engine>
   void resample_hyperparameters(Engine&) {}
   double log_likelihood() const { return draws * log(p0); }
-  const double p0;
+  template<class Archive> void serialize(Archive& ar, const unsigned int) {
+    ar & p0;
+    ar & draws;
+  }
+  double p0;
   int draws;
 };
 

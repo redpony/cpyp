@@ -390,6 +390,26 @@ class SparseVector {
     std::memcpy(&other.data_, &data_, sizeof(data_));
     std::memcpy(&data_, t, sizeof(data_));
   }
+  template<class Archive>
+  void save(Archive & ar, const unsigned int) const {
+    int eff_size = size();
+    const_iterator it = this->begin();
+    ar & eff_size;
+    while (it != this->end()) {
+      ar & *it;
+      ++it;
+    }
+  }
+  template<class Archive>
+  void load(Archive & ar, const unsigned int) {
+    this->clear();
+    unsigned sz; ar & sz;
+    for (unsigned i = 0; i < sz; ++i) {
+      std::pair<unsigned, T> wire_pair;
+      ar & wire_pair;
+      this->set_value(wire_pair.first, wire_pair.second);
+    }
+  }
  private:
   static inline T& extend_vector(std::vector<T> &v,size_t i) {
     if (i>=v.size())

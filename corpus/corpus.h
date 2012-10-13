@@ -10,6 +10,8 @@
 #include <unordered_map>
 #include <functional>
 
+namespace cpyp {
+
 class Dict {
  typedef std::unordered_map<std::string, unsigned, std::hash<std::string> > Map;
  public:
@@ -60,9 +62,13 @@ class Dict {
     if (id == 0) return b0_;
     return words_[id-1];
   }
-
+  template<class Archive> void serialize(Archive& ar, const unsigned int version) {
+    ar & b0_;
+    ar & words_;
+    ar & d_;
+  }
  private:
-  const std::string b0_;
+  std::string b0_;
   std::vector<std::string> words_;
   Map d_;
 };
@@ -83,6 +89,8 @@ void ReadFromFile(const std::string& filename,
     d->ConvertWhitespaceDelimitedLine(line, &src->back());
     for (unsigned i = 0; i < src->back().size(); ++i) src_vocab->insert(src->back()[i]);
   }
+}
+
 }
 
 #endif

@@ -11,6 +11,10 @@
 #include "uvector.h"
 #include "dhpyplm.h"
 
+#include "cpyp/boost_serializers.h"
+#include <boost/serialization/vector.hpp>
+#include <boost/archive/binary_oarchive.hpp>
+
 // A not very memory-efficient implementation of a domain adapting
 // HPYP language model, as described by Wood & Teh (AISTATS, 2009)
 //
@@ -25,30 +29,36 @@ Dict dict;
 
 int main(int argc, char** argv) {
   if (argc < 4) {
-    cerr << argv[0] << " <training1.txt> <training2.txt> [...] <test.txt> <nsamples>\n\nInfer a " << kORDER << "-gram HPYP LM and report posterior-predictive perplexity\n100 is usually sufficient for <nsamples>\n";
+    cerr << argv[0] << " <training1.txt> <training2.txt> [...] <output.dlm> <nsamples>\n\nInfer a " << kORDER << "-gram HPYP LM and write the trained model\n100 is usually sufficient for <nsamples>\n";
     return 1;
   }
   MT19937 eng;
   vector<string> train_files;
   for (int i = 1; i < argc - 2; ++i)
     train_files.push_back(argv[i]);
-  string test_file = argv[argc - 2];
+  string output_file = argv[argc - 2];
   int samples = atoi(argv[argc - 1]);
+  assert(samples > 0);
+  {
+    ifstream test(output_file);
+    if (test.good()) {
+      cerr << "File " << output_file << " appears to exist: please remove\n";
+      return 1;
+    }
+  }
+
   int d = 1;
   for (auto& tf : train_files)
-    cerr << (d++==1 ? "*" : "") << "Corpus "<< ": " << tf << endl;
-  set<unsigned> vocab, tvocab;
+    cerr << (d++==1 ? "  [primary] " : "[secondary] ")
+         << "training corpus "<< ": " << tf << endl;
+  set<unsigned> vocab;
   const unsigned kSOS = dict.Convert("<s>");
   const unsigned kEOS = dict.Convert("</s>");
-  vector<vector<unsigned> > test;
-  ReadFromFile(test_file, &dict, &test, &tvocab);
   vector<vector<vector<unsigned> > > corpora(train_files.size());
   d = 0;
   for (const auto& train_file : train_files)
     ReadFromFile(train_file, &dict, &corpora[d++], &vocab);
 
-  vector<vector<unsigned>> corpus = corpora[0];
-  cerr << "E-corpus size: " << corpus.size() << " sentences\t (" << vocab.size() << " word types)\n";
   PYPLM<kORDER> latent_lm(vocab.size(), 1, 1, 1, 1);
   vector<DAPYPLM<kORDER>> dlm(corpora.size(), DAPYPLM<kORDER>(latent_lm)); // domain LMs
   vector<unsigned> ctx(kORDER - 1, kSOS);
@@ -77,34 +87,19 @@ int main(int argc, char** argv) {
       }
     } else { cerr << '.' << flush; }
   }
-  double llh = 0;
-  unsigned cnt = 0;
-  unsigned oovs = 0;
-  for (auto& s : test) {
-    ctx.resize(kORDER - 1);
-    for (unsigned i = 0; i <= s.size(); ++i) {
-      unsigned w = (i < s.size() ? s[i] : kEOS);
-      double lp = log(dlm[0].prob(w, ctx)) / log(2);
-      if (i < s.size() && vocab.count(w) == 0) {
-        cerr << "**OOV ";
-        ++oovs;
-        lp = 0;
-      }
-      cerr << "p(" << dict.Convert(w) << " |";
-      for (unsigned j = ctx.size() + 1 - kORDER; j < ctx.size(); ++j)
-        cerr << ' ' << dict.Convert(ctx[j]);
-      cerr << ") = " << lp << endl;
-      ctx.push_back(w);
-      llh -= lp;
-      cnt++;
-    }
+  cerr << "Writing LM to " << output_file << " ...\n";
+  ofstream ofile(output_file.c_str(), ios::out | ios::binary);
+  if (!ofile.good()) {
+    cerr << "Failed to open " << output_file << " for writing\n";
+    return 1;
   }
-  cnt -= oovs;
-  cerr << "  Log_10 prob: " << (-llh * log(2) / log(10)) << endl;
-  cerr << "        Count: " << cnt << endl;
-  cerr << "         OOVs: " << oovs << endl;
-  cerr << "Cross-entropy: " << (llh / cnt) << endl;
-  cerr << "   Perplexity: " << pow(2, llh / cnt) << endl;
+  boost::archive::binary_oarchive oa(ofile);
+  oa & dict;
+  oa & latent_lm;
+  unsigned num_domains = dlm.size();
+  oa & num_domains;
+  for (unsigned i = 0; i < num_domains; ++i)
+    oa & dlm[i];
   return 0;
 }
 

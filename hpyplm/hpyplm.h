@@ -27,9 +27,13 @@ template<> struct PYPLM<0> : public UniformVocabulary {
 
 // represents an N-gram LM
 template <unsigned N> struct PYPLM {
-  PYPLM(unsigned vs, double da, double db, double ss, double sr) :
+  PYPLM() :
+      backoff(0,1,1,1,1),
+      tr(1,1,1,1,0.8,0.0),
+      lookup(N-1) {}
+  explicit PYPLM(unsigned vs, double da = 1.0, double db = 1.0, double ss = 1.0, double sr = 1.0) :
       backoff(vs, da, db, ss, sr),
-      tr(da, db, ss, sr, 0.8, 1.0),
+      tr(da, db, ss, sr, 0.8, 0.0),
       lookup(N-1) {}
   template<typename Engine>
   void increment(unsigned w, const std::vector<unsigned>& context, Engine& eng) {
@@ -38,7 +42,7 @@ template <unsigned N> struct PYPLM {
       lookup[i] = context[context.size() - 1 - i];
     auto it = p.find(lookup);
     if (it == p.end()) {
-      it = p.insert(make_pair(lookup, crp<unsigned>(0.8,1))).first;
+      it = p.insert(make_pair(lookup, crp<unsigned>(0.8,0))).first;
       tr.insert(&it->second);  // add to resampler
     }
     if (it->second.increment(w, bo, eng))
@@ -72,10 +76,13 @@ template <unsigned N> struct PYPLM {
     backoff.resample_hyperparameters(eng);
   }
 
+  template<class Archive> void serialize(Archive& ar, const unsigned int version) {
+    backoff.serialize(ar, version);
+    ar & p;
+  }
+
   PYPLM<N-1> backoff;
   tied_parameter_resampler<crp<unsigned>> tr;
-  double discount_a, discount_b, strength_s, strength_r;
-  double d, strength;
   mutable std::vector<unsigned> lookup;  // thread-local
   std::unordered_map<std::vector<unsigned>, crp<unsigned>, uvector_hash> p;  // .first = context .second = CRP
 };

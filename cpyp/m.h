@@ -54,10 +54,10 @@ struct M {
   }
 
   // this is the Beta *density* p(x ; alpha, beta)
-  // support x \in (0,1)
+  // support x \in [0,1]
   static inline F log_beta_density(const F& x, const F& alpha, const F& beta) {
-    assert(x > 0.0);
-    assert(x < 1.0);
+    assert(x > 0.0);  // should be >= but need to work out the density
+    assert(x < 1.0);  // should be <= but need to work out the density
     assert(alpha > 0.0);
     assert(beta > 0.0);
     return (alpha-1)*std::log(x)+(beta-1)*std::log(1-x) - log_beta_fn(alpha, beta);

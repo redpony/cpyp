@@ -4,63 +4,54 @@
 
 #include "hpyplm.h"
 #include "corpus/corpus.h"
-#include "cpyp/m.h"
-#include "cpyp/random.h"
-#include "cpyp/crp.h"
-#include "cpyp/tied_parameter_resampler.h"
+
+#include "cpyp/boost_serializers.h"
+#include <boost/serialization/vector.hpp>
+#include <boost/archive/binary_iarchive.hpp>
 
 #define kORDER 3
 
 using namespace std;
 using namespace cpyp;
 
-Dict dict;
-
 int main(int argc, char** argv) {
-  if (argc != 4) {
-    cerr << argv[0] << " <training.txt> <test.txt> <nsamples>\n\nEstimate a " << kORDER << "-gram HPYP LM and report perplexity\n100 is usually sufficient for <nsamples>\n";
+  if (argc != 3) {
+    cerr << argv[0] << " <input.lm> <test.txt>\n\nCompute perplexity of a " << kORDER << "-gram HPYP LM\n";
     return 1;
   }
   MT19937 eng;
-  string train_file = argv[1];
+  string lm_file = argv[1];
   string test_file = argv[2];
-  int samples = atoi(argv[3]);
-  
-  vector<vector<unsigned> > corpuse;
-  set<unsigned> vocabe, tv;
+
+  PYPLM<kORDER> lm;
+  //vector<unsigned> ctx(kORDER - 1, kSOS);
+
+  cerr << "Reading LM from " << lm_file << " ...\n";
+  ifstream ifile(lm_file.c_str(), ios::in | ios::binary);
+  if (!ifile.good()) {
+    cerr << "Failed to open " << lm_file << " for reading\n";
+    return 1;
+  }
+  boost::archive::binary_iarchive ia(ifile);
+  Dict dict;
+  ia & dict;
+  ia & lm;
+  const unsigned max_iv = dict.max();
   const unsigned kSOS = dict.Convert("<s>");
   const unsigned kEOS = dict.Convert("</s>");
-  cerr << "Reading corpus...\n";
-  ReadFromFile(train_file, &dict, &corpuse, &vocabe);
-  cerr << "E-corpus size: " << corpuse.size() << " sentences\t (" << vocabe.size() << " word types)\n";
+  set<unsigned> tv;
   vector<vector<unsigned> > test;
   ReadFromFile(test_file, &dict, &test, &tv);
-  PYPLM<kORDER> lm(vocabe.size(), 1, 1, 1, 1);
-  vector<unsigned> ctx(kORDER - 1, kSOS);
-  for (int sample=0; sample < samples; ++sample) {
-    for (const auto& s : corpuse) {
-      ctx.resize(kORDER - 1);
-      for (unsigned i = 0; i <= s.size(); ++i) {
-        unsigned w = (i < s.size() ? s[i] : kEOS);
-        if (sample > 0) lm.decrement(w, ctx, eng);
-        lm.increment(w, ctx, eng);
-        ctx.push_back(w);
-      }
-    }
-    if (sample % 10 == 9) {
-      cerr << " [LLH=" << lm.log_likelihood() << "]" << endl;
-      if (sample % 30u == 29) lm.resample_hyperparameters(eng);
-    } else { cerr << '.' << flush; }
-  }
   double llh = 0;
   unsigned cnt = 0;
   unsigned oovs = 0;
+  vector<unsigned> ctx(kORDER - 1, kSOS);
   for (auto& s : test) {
     ctx.resize(kORDER - 1);
     for (unsigned i = 0; i <= s.size(); ++i) {
       unsigned w = (i < s.size() ? s[i] : kEOS);
       double lp = log(lm.prob(w, ctx)) / log(2);
-      if (i < s.size() && vocabe.count(w) == 0) {
+      if (w >= max_iv) {
         cerr << "**OOV ";
         ++oovs;
         lp = 0;

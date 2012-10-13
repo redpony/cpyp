@@ -101,6 +101,12 @@ template <unsigned N> struct DAPYPLM {
     in_domain_backoff.resample_hyperparameters(eng);
   }
 
+  template<class Archive> void serialize(Archive& ar, const unsigned int version) {
+    ar & path;
+    in_domain_backoff.serialize(ar, version);
+    ar & p;
+  }
+
   crp<unsigned> path;
   tied_parameter_resampler<mf_crp<2, unsigned>> tr;
   DAPYPLM<N-1> in_domain_backoff;
