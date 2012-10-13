@@ -10,6 +10,8 @@ cpyp
 - (Conditional, given discount) Gamma prior on strength hyperparameter
 - Tied hyperparameters
 - Slice sampling for hyperparameter inference
+- “Multifloor” Chinese Restaurant processes to perform inference in graphical Pitman-Yor processes
+- Serialization of CRPs using [Boost.Serialization](www.boost.org/libs/serialization) (optional)
 - Example implementations
     - Hierarchical Pitman-Yor process language model ([Teh, 2006](http://acl.ldc.upenn.edu/P/P06/P06-1124.pdf))
     - Domain adapting graphical Pitman-Yor process language model ([Wood & Teh, 2009](http://jmlr.csail.mit.edu/proceedings/papers/v5/wood09a/wood09a.pdf))
