@@ -24,6 +24,21 @@ double log_likelihood(const tied_parameter_resampler<crp<short>>& p,
   return llh;
 }
 
+void topic_summary(const unsigned vocab_size, const vector<crp<unsigned>>& topic_term, const double uniform_word) {
+  vector<double> p(vocab_size);
+  vector<unsigned> ind(vocab_size);
+  for (auto& topic : topic_term) {
+    for (unsigned j = 0; j < vocab_size; ++j) {
+      p[j] = topic.prob(j, uniform_word);
+      ind[j] = j;
+    }
+    cerr << "TOPIC (d=" << topic.discount() << ", s=" << topic.strength() << ")\n  ";
+    partial_sort(ind.begin(), ind.begin() + 10, ind.end(), [&p](unsigned a, unsigned b) { return p[a] > p[b]; });
+    for (int j = 0; j < 10; ++j) cerr << " " << dict.Convert(ind[j]) << ':' << p[ind[j]];
+    cerr << endl;
+  }
+}
+
 int main(int argc, char** argv) {
   if (argc != 4) {
     cerr << argv[0] << " <training.txt> <ntopics> <nsamples>\n\nEstimate a 'Latent Pitman-Yor Allocation' model\nInput format: each line in <training.txt> is a document\n";
@@ -75,22 +90,12 @@ int main(int argc, char** argv) {
         for (auto& crp : topic_term)
           crp.resample_hyperparameters(eng);
       }
+      topic_summary(vocab.size(), topic_term, uniform_word);
     } else { cerr << '.' << flush; }
   }
 
   // print out highest probability words in each topic
-  vector<double> p(vocab.size());
-  vector<unsigned> ind(vocab.size());
-  for (auto& topic : topic_term) {
-    for (unsigned j = 0; j < vocab.size(); ++j) {
-      p[j] = topic.prob(j, uniform_word);
-      ind[j] = j;
-    }
-    cerr << "TOPIC (d=" << topic.discount() << ", s=" << topic.strength() << ")\n  ";
-    partial_sort(ind.begin(), ind.begin() + 10, ind.end(), [&p](unsigned a, unsigned b) { return p[a] > p[b]; });
-    for (int j = 0; j < 10; ++j) cerr << " " << dict.Convert(ind[j]) << ':' << p[ind[j]];
-    cerr << endl;
-  }
+  topic_summary(vocab.size(), topic_term, uniform_word);
   return 0;
 }
 
