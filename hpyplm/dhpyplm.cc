@@ -49,14 +49,13 @@ int main(int argc, char** argv) {
 
   vector<vector<unsigned>> corpus = corpora[0];
   cerr << "E-corpus size: " << corpus.size() << " sentences\t (" << vocab.size() << " word types)\n";
-  PYPLM<kORDER> lm(vocab.size(), 1, 1, 1, 1);
-  DAPYPLM<kORDER> dalm0(lm);
-  DAPYPLM<kORDER> dalm1(lm);
+  PYPLM<kORDER> latent_lm(vocab.size(), 1, 1, 1, 1);
+  vector<DAPYPLM<kORDER>> dlm(corpora.size(), DAPYPLM<kORDER>(latent_lm)); // domain LMs
   vector<unsigned> ctx(kORDER - 1, kSOS);
   for (int sample=0; sample < samples; ++sample) {
     int ci = 0;
     for (const auto& corpus : corpora) {
-      DAPYPLM<kORDER>& lm = (ci == 0 ? dalm0 : dalm1);
+      DAPYPLM<kORDER>& lm = dlm[ci];
       ++ci;
       for (const auto& s : corpus) {
         ctx.resize(kORDER - 1);
@@ -69,11 +68,12 @@ int main(int argc, char** argv) {
       }
     }
     if (sample % 10 == 9) {
-      cerr << " [LLH=" << (lm.log_likelihood() + dalm0.log_likelihood() + dalm1.log_likelihood()) << "]" << endl;
+      double llh = latent_lm.log_likelihood();
+      for (auto& lm : dlm) llh += lm.log_likelihood();
+      cerr << " [LLH=" << llh << "]\n";
       if (sample % 30u == 29) {
-        dalm0.resample_hyperparameters(eng);
-        dalm1.resample_hyperparameters(eng);
-        lm.resample_hyperparameters(eng);
+        for (auto& lm : dlm) lm.resample_hyperparameters(eng);
+        latent_lm.resample_hyperparameters(eng);
       }
     } else { cerr << '.' << flush; }
   }
@@ -84,7 +84,7 @@ int main(int argc, char** argv) {
     ctx.resize(kORDER - 1);
     for (unsigned i = 0; i <= s.size(); ++i) {
       unsigned w = (i < s.size() ? s[i] : kEOS);
-      double lp = log(dalm0.prob(w, ctx)) / log(2);
+      double lp = log(dlm[0].prob(w, ctx)) / log(2);
       if (i < s.size() && vocab.count(w) == 0) {
         cerr << "**OOV ";
         ++oovs;
