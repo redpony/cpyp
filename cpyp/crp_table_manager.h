@@ -3,7 +3,7 @@
 
 #include <iostream>
 #include <utility>
-#include "sparse_vector.h"
+#include "msparse_vector.h"
 #include "random.h"
 
 namespace cpyp {

@@ -1,5 +1,5 @@
-#ifndef DICT_H_
-#define DICT_H_
+#ifndef CPYPDICT_H_
+#define CPYPDICT_H_
 
 #include <string>
 #include <iostream>
