@@ -5,38 +5,25 @@
 #include <boost/serialization/vector.hpp>
 #include <boost/archive/binary_iarchive.hpp>
 
+// cpyp stuff
+#include "cpyp/random.h"
+#include "corpus/corpus.h"
+#include "hpyplm/hpyplm.h"
+
 // cdec stuff
 #include "stringlib.h"
-//#include "fdict.h"
-extern "C" int fd_convert_string(const std::string& str);
-
-#include "corpus/corpus.h"
-#include "hpyplm.h"
-#define kORDER 3
-
 #include "ff.h"
 #include "hg.h"
-using namespace std;
+#include "fdict.h"
+#include "sentence_metadata.h"
 
-namespace HG { struct Edge; }
+#define kORDER 3
+
+using namespace std;
 
 namespace {
 
-#if 0
-struct VMapper : public lm::EnumerateVocab {
-  VMapper(vector<lm::WordIndex>* out) : out_(out), kLM_UNKNOWN_TOKEN(0) { out_->clear(); }
-  void Add(lm::WordIndex index, const StringPiece &str) {
-    const WordID cdec_id = TD::Convert(str.as_string());
-    if (cdec_id >= out_->size())
-      out_->resize(cdec_id + 1, kLM_UNKNOWN_TOKEN);
-    (*out_)[cdec_id] = index;
-  }
-  vector<lm::WordIndex>* out_;
-  const lm::WordIndex kLM_UNKNOWN_TOKEN;
-};
-#endif
-
-bool parse_lmspec(std::string const& in, string &featurename, string &filename) {
+bool parse_lmspec(std::string const& in, string &featurename, string &filename, string& reffile) {
   vector<string> const& argv=SplitOnWhitespace(in);
   featurename="HPYPLM";
 #define LMSPEC_NEXTARG if (i==argv.end()) {            \
@@ -48,6 +35,9 @@ bool parse_lmspec(std::string const& in, string &featurename, string &filename) 
     if (s[0]=='-') {
       if (s.size()>2) goto fail;
       switch (s[1]) {
+      case 'r':
+        LMSPEC_NEXTARG; reffile=*i;
+        break;
       case 'n':
         LMSPEC_NEXTARG; featurename=*i;
         break;
@@ -85,7 +75,7 @@ struct SimplePair {
 
 class FF_HPYPLM : public FeatureFunction {
  public:
-  FF_HPYPLM(const string& lm_file, const string& feat) : fid(fd_convert_string(feat)), fid_oov(fd_convert_string(feat+"_OOV")) {
+  FF_HPYPLM(const string& lm_file, const string& feat, const string& reffile) : fid(fd_convert_string(feat)), fid_oov(fd_convert_string(feat+"_OOV")) {
     cerr << "Reading LM from " << lm_file << " ...\n";
     ifstream ifile(lm_file.c_str(), ios::in | ios::binary);
     if (!ifile.good()) {
@@ -96,13 +86,8 @@ class FF_HPYPLM : public FeatureFunction {
     ia & dict;
     ia & lm;
     cerr << "Initializing map contents (map size=" << dict.max() << ")\n";
-    for (unsigned i = 1; i < dict.max(); ++i) {
-      const unsigned cdec_id = td_convert_string(dict.Convert(i));
-      assert(cdec_id > 0);
-      if (cdec_id >= cdec2cpyp.size())
-        cdec2cpyp.resize(cdec_id + 1);
-      cdec2cpyp[cdec_id] = i;
-    }
+    for (unsigned i = 1; i < dict.max(); ++i)
+      AddToWordMap(i);
     cerr << "Done.\n";
     ss_off = OrderToStateSize(kORDER)-1;  // offset of "state size" member
     FeatureFunction::SetStateSize(OrderToStateSize(kORDER));
@@ -111,6 +96,46 @@ class FF_HPYPLM : public FeatureFunction {
     kUNKNOWN = dict.Convert("<unk>");
     kNONE = 0;
     kSTAR = dict.Convert("<{STAR}>");
+    last_id = 0;
+
+    // optional online "adaptation" by training on previous references
+    if (reffile.size()) {
+      cerr << "Reference file: " << reffile << endl;
+      set<unsigned> rv;
+      cpyp::ReadFromFile(reffile, &dict, &ref_sents, &rv);
+    }
+  }
+
+  virtual void PrepareForInput(const SentenceMetadata& smeta) {
+    unsigned id = smeta.GetSentenceID();
+    if (last_id > id) {
+      cerr << "last_id = " << last_id << " but id = " << id << endl;
+      abort();
+    }
+    if (last_id < ref_sents.size() && last_id < id) {
+      cerr << "  ** HPYPLM: Adapting LM using previously translated references for sentences [" << last_id << ',' << id << ")\n";
+      for (unsigned i = last_id; i < id; ++i)
+        if (i < ref_sents.size()) IncorporateSentenceToLM(ref_sents[i]);
+    }
+    last_id = id;
+  }
+
+  inline void AddToWordMap(const unsigned cpyp_id) {
+    const unsigned cdec_id = td_convert_string(dict.Convert(cpyp_id));
+    assert(cdec_id > 0);
+    if (cdec_id >= cdec2cpyp.size())
+      cdec2cpyp.resize(cdec_id + 1);
+    cdec2cpyp[cdec_id] = cpyp_id;
+  }
+
+  void IncorporateSentenceToLM(const vector<unsigned>& sent) {
+    cpyp::MT19937 eng;
+    vector<unsigned> ctx(kORDER - 1, kSTART);
+    for (auto w : sent) {
+      AddToWordMap(w);
+      lm.increment(w, ctx, eng);
+      ctx.push_back(w);
+    }
   }
 
  protected:
@@ -179,18 +204,6 @@ class FF_HPYPLM : public FeatureFunction {
     double p = WordProb(buffer_[i], &buffer_[i+1]);
     //cerr << ")=" << p << endl;
     return SimplePair(p, 0.0);
-  }
-
-  string DebugStateToString(const void* state) const {
-    int len = StateSize(state);
-    const int* astate = reinterpret_cast<const int*>(state);
-    string res = "[";
-    for (int i = 0; i < len; ++i) {
-      res += " ";
-      res += TD::Convert(astate[i]);
-    }
-    res += " ]";
-    return res;
   }
 
   inline SimplePair ProbNoRemnant(int i, int len) const {
@@ -322,12 +335,16 @@ class FF_HPYPLM : public FeatureFunction {
   const int fid;
   const int fid_oov;
   vector<int> cdec2cpyp; // cdec2cpyp[TD::Convert("word")] returns the index in the cpyp model
+
+  // stuff for online updating of LM
+  vector<vector<unsigned>> ref_sents;
+  unsigned last_id; // id of the last sentence that was translated
 };
 
 extern "C" FeatureFunction* create_ff(const string& str) {
-  string featurename, filename;
-  parse_lmspec(str, featurename, filename);
-  return new FF_HPYPLM(filename, featurename);
+  string featurename, filename, reffile;
+  parse_lmspec(str, featurename, filename, reffile);
+  return new FF_HPYPLM(filename, featurename, reffile);
 }
 
 
