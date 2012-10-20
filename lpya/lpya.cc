@@ -78,7 +78,8 @@ int main(int argc, char** argv) {
         for (unsigned k = 0; k < topics; ++k)
           probs[k] = doc_topic[i].prob(k, uniform_topic) * topic_term[k].prob(w, uniform_word);
         multinomial_distribution<double> mult(probs);
-        z_ij = mult(eng);  // resample z_ij
+        // random sample during the first iteration
+        z_ij = sample ? mult(eng) : static_cast<unsigned>(sample_uniform01<float>(eng) * topics);
         doc_topic[i].increment(z_ij, uniform_topic, eng);
         topic_term[z_ij].increment(w, uniform_word, eng);
       }
