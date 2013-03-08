@@ -75,7 +75,7 @@ struct SimplePair {
 
 class FF_HPYPLM : public FeatureFunction {
  public:
-  FF_HPYPLM(const string& lm_file, const string& feat, const string& reffile) : fid(fd_convert_string(feat)), fid_oov(fd_convert_string(feat+"_OOV")) {
+  FF_HPYPLM(const string& lm_file, const string& feat, const string& reffile) : fid(FD::Convert(feat)), fid_oov(FD::Convert(feat+"_OOV")) {
     cerr << "Reading LM from " << lm_file << " ...\n";
     ifstream ifile(lm_file.c_str(), ios::in | ios::binary);
     if (!ifile.good()) {
@@ -121,7 +121,7 @@ class FF_HPYPLM : public FeatureFunction {
   }
 
   inline void AddToWordMap(const unsigned cpyp_id) {
-    const unsigned cdec_id = td_convert_string(dict.Convert(cpyp_id));
+    const unsigned cdec_id = TD::Convert(dict.Convert(cpyp_id));
     assert(cdec_id > 0);
     if (cdec_id >= cdec2cpyp.size())
       cdec2cpyp.resize(cdec_id + 1);
@@ -343,7 +343,8 @@ class FF_HPYPLM : public FeatureFunction {
 
 extern "C" FeatureFunction* create_ff(const string& str) {
   string featurename, filename, reffile;
-  parse_lmspec(str, featurename, filename, reffile);
+  if (!parse_lmspec(str, featurename, filename, reffile))
+    abort();
   return new FF_HPYPLM(filename, featurename, reffile);
 }
 
