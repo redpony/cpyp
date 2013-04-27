@@ -293,7 +293,8 @@ class crp {
         lp += lgamma(strength) + num_tables_ * log(strength) - lgamma(strength + num_tables_);
         assert(std::isfinite(lp));
         for (auto& dish_loc : dish_locs_)
-          lp += lgamma(dish_loc.second.num_tables());
+          for (auto& bin : dish_loc.second.h[0])
+            lp += lgamma(bin.first) * bin.second;
       } else { // should never happen
         assert(!"discount less than 0 detected!");
       }
