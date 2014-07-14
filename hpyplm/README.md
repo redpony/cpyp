@@ -57,7 +57,7 @@ Command to run the HPYPLM sampler for 1,000 iterations (the DHPYPLM requires far
 
 Note that the order of the command line options determines which is the "in domain" training data and which is the "domain general" training data.
 
-Results (will vary slightly due to MCMC variation):
+Expected output (will vary slightly due to random variation):
 
     Seeding random number sequence to 1695250841
     *Corpus : sotu-train.txt
