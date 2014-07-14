@@ -72,4 +72,12 @@ Expected output (will vary slightly due to random variation):
     Path<3> d=0.115053,s=0.506993 p(in_domain) = 0.408102
     Resampled 111947 CRPs (d=0.766203,s=2.12444) = -362698
     <snip>
+    p(americans | for all) = -2.66073
+    p(. | all americans) = -2.47935
+    p(</s> | americans .) = -0.0105928
+      Log_10 prob: -134690
+            Count: 64095
+             OOVs: 209
+    Cross-entropy: 6.98072
+       Perplexity: 126.3
 
