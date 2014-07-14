@@ -10,12 +10,12 @@ The test and training data are:
 
 ## Get the data
 
-* Download the [Brown corpus and state-of-the-union data](http://demo.clab.cs.cmu.edu/cdyer/dhpyplm-data.tar.gz)
+Download the [Brown corpus and state-of-the-union data](http://demo.clab.cs.cmu.edu/cdyer/dhpyplm-data.tar.gz)
 
     tar xzf dhpyplm-data.tar.gz
     cd dhpyplm-data
 
-* Create the merged training data
+Create the merged training data
 
     cat brown.txt sotu-train.txt > all-train.txt
 
