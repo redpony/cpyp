@@ -8,6 +8,8 @@ The test and training data are:
  * The test set is the SOTU speeches by Lyndon Johnson.
  * The training corpus consists of the Brown corpus (domain general) and the SOTU speeches by the other presidents (domain specific). In the base condition, the domain general and domain specific corpora are merged. The the domain aware LM, the Brown corpus LM is used as a possible backoff for the SOTU-specific LM.
 
+Note: I have lowercased the data, which Wood & Teh apparently did not do so the perplexities below are different than they report.
+
 ## Get the data
 
 Download the [Brown corpus and state-of-the-union data](http://demo.clab.cs.cmu.edu/cdyer/dhpyplm-data.tar.gz)
