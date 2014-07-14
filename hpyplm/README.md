@@ -51,7 +51,7 @@ Expected output (will vary slightly due to random variation):
 
 ## Run the DHPYPLM condition
 
-Command to run the HPYPLM sampler for 1,000 iterations (the DHPYPLM requires far more iterations than the HPYPLM to obtain good performance; as above, test perplexity is computed from the posterior predictive distribution of the final sample):
+Command to run the domain adapting DHPYPLM sampler for 1,000 iterations (the DHPYPLM requires far more iterations than the HPYPLM to obtain good performance; as above, test perplexity is computed from the posterior predictive distribution of the final sample):
 
     ../dhpyplm sotu-train.txt brown.txt sotu-test.txt 1000
 
