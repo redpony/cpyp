@@ -1,4 +1,4 @@
-This describes how to replicate the [Wood & Teh (AISTATS 2009)](http://machinelearning.wustl.edu/mlpapers/paper_files/AISTATS09_WoodT.pdf) that use the doubly hierarchical PYP LM as a domain adapting language model.
+This describes how to replicate the [Wood & Teh (AISTATS 2009)](http://machinelearning.wustl.edu/mlpapers/paper_files/AISTATS09_WoodT.pdf) results that use the doubly hierarchical PYP LM as a domain adapting language model.
 
 There are two corpora provided (see below):
  * The Brown corpus (Francis & Kucera)
