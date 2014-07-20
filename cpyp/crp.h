@@ -70,12 +70,19 @@ class crp {
       abort();
     }
 
-    llh_ = lgamma(strength_) - lgamma(strength_ / discount_);
-    if (has_discount_prior())
-      llh_ = Md::log_beta_density(discount_, discount_prior_strength_, discount_prior_beta_);
-    if (has_strength_prior())
-      llh_ += Md::log_gamma_density(strength_ + discount_, strength_prior_shape_, strength_prior_rate_);
-    if (num_tables_ > 0) llh_ = log_likelihood(discount_, strength_);
+    if (discount_) {
+      llh_ = lgamma(strength_) - lgamma(strength_ / discount_);
+      if (has_discount_prior())
+        llh_ = Md::log_beta_density(discount_, discount_prior_strength_, discount_prior_beta_);
+      if (has_strength_prior())
+        llh_ += Md::log_gamma_density(strength_ + discount_, strength_prior_shape_, strength_prior_rate_);
+      if (num_tables_ > 0) llh_ = log_likelihood(discount_, strength_);
+    } else {
+      llh_ = lgamma(strength_);
+      if (has_strength_prior())
+        llh_ += Md::log_gamma_density(strength_, strength_prior_shape_, strength_prior_rate_);
+      if (num_tables_ > 0) llh_ = log_likelihood(discount_, strength_);
+    }
   }
 
   double discount() const { return discount_; }
@@ -228,8 +235,8 @@ class crp {
   }
 
   double log_likelihood() const {
-    return llh_;
-//    return log_likelihood(discount_, strength_);
+//    return llh_;
+    return log_likelihood(discount_, strength_);
   }
 
   // call this before changing the number of tables / customers
@@ -254,7 +261,7 @@ class crp {
   // does not include P_0's
   double log_likelihood(const double& discount, const double& strength) const {
     double lp = 0.0;
-    if (has_discount_prior())
+    if (has_discount_prior() && discount)
       lp = Md::log_beta_density(discount, discount_prior_strength_, discount_prior_beta_);
     if (has_strength_prior())
       lp += Md::log_gamma_density(strength + discount, strength_prior_shape_, strength_prior_rate_);
@@ -295,7 +302,7 @@ class crp {
         for (auto& dish_loc : dish_locs_)
           for (auto& bin : dish_loc.second.h[0])
             lp += lgamma(bin.first) * bin.second;
-      } else { // should never happen
+      } else { // should never happen, we check this elsewhere
         assert(!"discount less than 0 detected!");
       }
     }
