@@ -23,7 +23,7 @@ using namespace std;
 
 namespace {
 
-bool parse_lmspec(std::string const& in, string &featurename, string &filename, string& reffile) {
+bool parse_lmspec(std::string const& in, string &featurename, string &filename, string& reffile, bool& streaming) {
   vector<string> const& argv=SplitOnWhitespace(in);
   featurename="HPYPLM";
 #define LMSPEC_NEXTARG if (i==argv.end()) {            \
@@ -40,6 +40,9 @@ bool parse_lmspec(std::string const& in, string &featurename, string &filename, 
         break;
       case 'n':
         LMSPEC_NEXTARG; featurename=*i;
+        break;
+      case 't':
+        streaming = true;
         break;
 #undef LMSPEC_NEXTARG
       default:
@@ -75,7 +78,13 @@ struct SimplePair {
 
 class FF_HPYPLM : public FeatureFunction {
  public:
-  FF_HPYPLM(const string& lm_file, const string& feat, const string& reffile) : fid(FD::Convert(feat)), fid_oov(FD::Convert(feat+"_OOV")) {
+  ~FF_HPYPLM() {
+    if (ref_in) {
+        ref_in->close();
+        delete ref_in;
+    }
+  }
+  FF_HPYPLM(const string& lm_file, const string& feat, const string& reffile, const bool streaming) : fid(FD::Convert(feat)), fid_oov(FD::Convert(feat+"_OOV")) {
     cerr << "Reading LM from " << lm_file << " ...\n";
     ifstream ifile(lm_file.c_str(), ios::in | ios::binary);
     if (!ifile.good()) {
@@ -99,14 +108,32 @@ class FF_HPYPLM : public FeatureFunction {
     last_id = 0;
 
     // optional online "adaptation" by training on previous references
+    this->streaming = streaming;
     if (reffile.size()) {
       cerr << "Reference file: " << reffile << endl;
-      set<unsigned> rv;
-      cpyp::ReadFromFile(reffile, &dict, &ref_sents, &rv);
+      if (streaming) {
+        cerr << "Streaming references" << endl;
+        ref_in = new ifstream(reffile);
+      } else {
+        set<unsigned> rv;
+        cpyp::ReadFromFile(reffile, &dict, &ref_sents, &rv);
+      }
     }
   }
 
   virtual void PrepareForInput(const SentenceMetadata& smeta) {
+    // Stream mode: read one (possibly empty) reference per input sentence
+    if (streaming) {
+      string line;
+      getline(*ref_in, line);
+      vector<unsigned> ref_sent;
+      dict.ConvertWhitespaceDelimitedLine(line, &ref_sent);
+      if (ref_sent.size()) {
+        cerr << "Adding reference: " << line << endl;
+        IncorporateSentenceToLM(ref_sent);
+      }
+      return;
+    }
     unsigned id = smeta.GetSentenceID();
     if (last_id > id) {
       cerr << "last_id = " << last_id << " but id = " << id << endl;
@@ -339,13 +366,16 @@ class FF_HPYPLM : public FeatureFunction {
   // stuff for online updating of LM
   vector<vector<unsigned>> ref_sents;
   unsigned last_id; // id of the last sentence that was translated
+  bool streaming;
+  ifstream* ref_in = NULL;
 };
 
 extern "C" FeatureFunction* create_ff(const string& str) {
   string featurename, filename, reffile;
-  if (!parse_lmspec(str, featurename, filename, reffile))
+  bool streaming = false;
+  if (!parse_lmspec(str, featurename, filename, reffile, streaming))
     abort();
-  return new FF_HPYPLM(filename, featurename, reffile);
+  return new FF_HPYPLM(filename, featurename, reffile, streaming);
 }
 
 
