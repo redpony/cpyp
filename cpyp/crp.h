@@ -297,7 +297,7 @@ class crp {
          // 4) when closing a table
          //    do nothing
       } else if (!discount) { // discount == 0.0 (ie, Dirichlet Process)
-        lp += lgamma(strength) + num_tables_ * log(strength) - lgamma(strength + num_tables_);
+        lp += lgamma(strength) + num_tables_ * log(strength) - lgamma(strength + num_customers_);
         assert(std::isfinite(lp));
         for (auto& dish_loc : dish_locs_)
           for (auto& bin : dish_loc.second.h[0])
