@@ -4,9 +4,6 @@
 #include <cassert>
 #include <cmath>
 
-// TODO right now I sometimes assert that x is in the support of the distributions
-// should be configurable to return -inf instead
-
 namespace cpyp {
 
 template <typename F>
@@ -36,7 +33,9 @@ struct M {
   static inline F log_negative_binom(unsigned x, unsigned r, const F& p) {
     assert(p > 0.0);
     assert(p < 1.0);
-    return log_binom_coeff(x + r - 1u, x) + r * std::log(F(1) - p) + x * std::log(p);
+    return log_binom_coeff(x + r - 1u, x) +
+        r * std::log(F(1) - p) +
+        x * std::log(p);
   }
 
   // this is the Beta function, *not* the beta probability density
@@ -50,7 +49,8 @@ struct M {
     assert(x >= 0.0);
     assert(shape > 0.0);
     assert(rate > 0.0);
-    return (shape-1)*std::log(x) - shape*std::log(rate) - x/rate - lgamma(shape);
+    return (shape-1)*std::log(x) - shape*std::log(rate) -
+        x/rate - lgamma(shape);
   }
 
   // this is the Beta *density* p(x ; alpha, beta)
@@ -60,7 +60,9 @@ struct M {
     assert(x < 1.0);  // should be <= but need to work out the density
     assert(alpha > 0.0);
     assert(beta > 0.0);
-    return (alpha-1)*std::log(x)+(beta-1)*std::log(1-x) - log_beta_fn(alpha, beta);
+    return (alpha - 1) * std::log(x) +
+        (beta - 1) * std::log(1 - x) -
+        log_beta_fn(alpha, beta);
   }
 
   // support x \in R
@@ -74,7 +76,8 @@ struct M {
   }
 
   // support x \in R
-  // this is NOT the "log normal" density, it is the log of the "normal density at x"
+  // this is NOT the "log normal" density, it is the log of the "normal
+  // density at x".
   static inline F log_gaussian_density(const F& x, const F& mu, const F& var) {
     assert(var > 0.0);
     return -0.5 * std::log(var * 2 * pi()) - (x - mu)*(x - mu) / (2 * var);
@@ -92,32 +95,43 @@ struct M {
     const F cor2 = cor*cor;
     const F var1var22 = var1 * var2;
     const F Z = 0.5 * std::log(var1var22 * (1 - cor2)) + std::log(2 * pi());
-    return -Z -1.0 / (2 * (1 - cor2)) * ((x1 - mu1)*(x1-mu1) / var1 + (x2-mu2)*(x2-mu2) / var2 - 2*cor*(x1 - mu1)*(x2-mu2) / std::sqrt(var1var22));
+    return -Z -1.0 / (2 * (1 - cor2)) *
+        ((x1 - mu1) * (x1-mu1) / var1 +
+         (x2 - mu2) * (x2-mu2) / var2 - 2 * cor * (x1 - mu1) * (x2 - mu2) /
+         std::sqrt(var1var22));
   }
 
   // support x \in [a,b]
-  static inline F log_triangle_density(const F& x, const F& a, const F& b, const F& c) {
+  static inline F log_triangle_density(const F& x,
+                                       const F& a,
+                                       const F& b,
+                                       const F& c) {
     assert(a < b);
     assert(a <= c);
     assert(c <= b);
     assert(x >= a);
     assert(x <= b);
-    if (x <= c)
-      return std::log(2) + std::log(x - a) - std::log(b - a) - std::log(c - a);
-    else
-      return std::log(2) + std::log(b - x) - std::log(b - a) - std::log(b - c);
+    if (x <= c) {
+      return std::log(2) + std::log(x - a) -
+          std::log(b - a) - std::log(c - a);
+    } else {
+      return std::log(2) + std::log(b - x) -
+          std::log(b - a) - std::log(b - c);
+    }
   }
 
-  // note: this has been adapted so that 0 is in the support of the distribution
-  // support [0, 1, 2 ...)
+  // note: this has been adapted so that 0 is in the support of the
+  // distribution support [0, 1, 2 ...)
   static inline F log_yule_simon(unsigned x, const F& rho) {
     assert(rho > 0.0);
     return std::log(rho) + log_beta_fn(x + 1, rho + 1);
   }
 
   // see http://www.gatsby.ucl.ac.uk/~ywteh/research/compling/hpylm.pdf
-  // when y=1, sometimes written x^{\overline{n}} or x^{(n)} "Pochhammer symbol"
-  static inline F log_generalized_factorial(const F& x, const F& n, const F& y = 1.0) {
+  // when y=1, sometimes written x^{\overline{n}} or x^{(n)}
+  // "Pochhammer symbol"
+  static inline F log_generalized_factorial(const F& x,
+                                            const F& n, const F& y = 1.0) {
     assert(x > 0.0);
     assert(y >= 0.0);
     assert(n > 0.0);
@@ -130,12 +144,11 @@ struct M {
       return n * std::log(x);
     }
   }
-
 };
 
 typedef M<double> Md;
-typedef M<double> Mf;
+typedef M<float> Mf;
 
-}
+}  // namespace cpyp
 
 #endif

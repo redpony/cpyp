@@ -25,7 +25,8 @@ class Dict {
     return (x == ' ' || x == '\t');
   }
 
-  inline void ConvertWhitespaceDelimitedLine(const std::string& line, std::vector<unsigned>* out) {
+  inline void ConvertWhitespaceDelimitedLine(const std::string& line,
+                                             std::vector<unsigned>* out) {
     size_t cur = 0;
     size_t last = 0;
     int state = 0;
@@ -62,7 +63,8 @@ class Dict {
     if (id == 0) return b0_;
     return words_[id-1];
   }
-  template<class Archive> void serialize(Archive& ar, const unsigned int version) {
+  template<class Archive> void serialize(Archive& ar,
+                                         const unsigned int version) {
     ar & b0_;
     ar & words_;
     ar & d_;
@@ -87,10 +89,12 @@ void ReadFromFile(const std::string& filename,
     ++lc;
     src->push_back(std::vector<unsigned>());
     d->ConvertWhitespaceDelimitedLine(line, &src->back());
-    for (unsigned i = 0; i < src->back().size(); ++i) src_vocab->insert(src->back()[i]);
+    for (unsigned i = 0; i < src->back().size(); ++i) {
+      src_vocab->insert(src->back()[i]);
+    }
   }
 }
 
-}
+}  // namespace cpyp
 
 #endif

@@ -3,8 +3,8 @@
 
 #include <iostream>
 #include <utility>
-#include "msparse_vector.h"
-#include "random.h"
+#include "cpyp/msparse_vector.h"
+#include "cpyp/random.h"
 
 namespace cpyp {
 
@@ -165,6 +165,6 @@ std::ostream& operator<<(std::ostream& os, const crp_table_manager<N>& tm) {
   return os << ']';
 }
 
-}
+}  // namespace cpyp
 
 #endif

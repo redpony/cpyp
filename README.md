@@ -19,5 +19,5 @@ cpyp
     - Unsupervised “Naive Bayes” single-membership clustering, using fast Metropolis-Hastings sampling
 
 ## System Requirements
-This software requires a C++ compiler that implements the [C++11 standard](http://en.wikipedia.org/wiki/C%2B%2B11), for example [gcc-4.7](http://gcc.gnu.org/) or [Clang-3.1](http://clang.llvm.org/) or something more recent. No other libraries or tools are required.
+This library should work with any C++ compiler that implements the [C++11 standard](http://en.wikipedia.org/wiki/C%2B%2B11). No other libraries are required.
 

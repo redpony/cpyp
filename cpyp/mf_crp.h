@@ -8,10 +8,10 @@
 #include <utility>
 #include <unordered_map>
 #include <functional>
-#include "random.h"
-#include "slice_sampler.h"
-#include "crp_table_manager.h"
-#include "m.h"
+#include "cpyp/random.h"
+#include "cpyp/slice_sampler.h"
+#include "cpyp/crp_table_manager.h"
+#include "cpyp/m.h"
 
 namespace cpyp {
 
@@ -395,6 +395,6 @@ std::ostream& operator<<(std::ostream& o, const mf_crp<N,T,H>& c) {
   return o;
 }
 
-}
+}  // namespace cpyp
 
 #endif

@@ -3,13 +3,14 @@
 
 #include <set>
 #include <vector>
-#include "random.h"
-#include "slice_sampler.h"
-#include "m.h"
+#include "cpyp/random.h"
+#include "cpyp/slice_sampler.h"
+#include "cpyp/m.h"
 
 namespace cpyp {
 
-// tie together CRPs that are conditionally independent given their hyperparameters
+// Tie together CRPs that are conditionally independent given their
+// hyperparameters.
 template <class CRP>
 struct tied_parameter_resampler {
   explicit tied_parameter_resampler(double da, double db, double ss, double sr, double d=0.5, double s=1.0) :
@@ -108,6 +109,6 @@ struct bintied_parameter_resampler {
   std::vector<tied_parameter_resampler<CRP> > resamplers;
 };
 
-}
+}  // namespace cpyp
 
 #endif

@@ -1,7 +1,7 @@
 #ifndef _CPYP_GAMMA_POISSON_H_
 #define _CPYP_GAMMA_POISSON_H_
 
-#include "m.h"
+#include "cpyp/m.h"
 
 namespace cpyp {
 
@@ -42,6 +42,6 @@ struct gamma_poisson {
   double llh;
 };
 
-}
+}  // namespace cpyp
 
 #endif
